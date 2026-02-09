@@ -647,6 +647,28 @@ class SQLiteManager:
                 )
             """)
 
+        # Cloudreve 网盘绑定表（每用户绑定自己的 Cloudreve 服务器）
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='cloudreve_bindings'
+        """)
+        if not cursor.fetchone():
+            logging.info("迁移数据库：创建 cloudreve_bindings 表（Cloudreve 网盘绑定）")
+            cursor.execute("""
+                CREATE TABLE cloudreve_bindings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE,
+                    cloudreve_url TEXT NOT NULL,
+                    access_token TEXT NOT NULL,
+                    refresh_token TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cloudreve_bindings_username ON cloudreve_bindings(username)"
+            )
+
     def _init_default_data(self):
         """初始化默认数据（仅在首次创建时）"""
         cursor = self.conn.cursor()

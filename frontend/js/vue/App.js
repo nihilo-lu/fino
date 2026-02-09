@@ -14,6 +14,7 @@ import FundsView from './components/FundsView.js'
 import AnalysisView from './components/AnalysisView.js'
 import SettingsView from './components/SettingsView.js'
 import ApiDocsView from './components/ApiDocsView.js'
+import CloudStorageView from './components/CloudStorageView.js'
 import Toast from './components/Toast.js'
 import FundModal from './components/FundModal.js'
 import AiChatButton from './components/AiChatButton.js'
@@ -25,11 +26,12 @@ const PAGE_TITLES = {
   transactions: '交易记录',
   funds: '资金明细',
   analysis: '收益分析',
+  'cloud-storage': '网盘',
   settings: '设置',
   'api-docs': 'API 文档'
 }
 
-const NAV_ITEMS = [
+const NAV_ITEMS_BASE = [
   { id: 'dashboard', label: '仪表盘', icon: 'dashboard' },
   { id: 'positions', label: '持仓管理', icon: 'account_balance' },
   { id: 'transactions', label: '交易记录', icon: 'receipt_long' },
@@ -54,6 +56,7 @@ export default {
     AnalysisView,
     SettingsView,
     ApiDocsView,
+    CloudStorageView,
     Toast,
     FundModal,
     AiChatButton,
@@ -72,6 +75,14 @@ export default {
     const registerSuccess = ref('')
     const pageTitle = computed(() => PAGE_TITLES[currentPage.value] || '仪表盘')
     const userName = computed(() => state.user?.name || state.user?.username || '用户名')
+    const navItems = computed(() => {
+      const items = [...NAV_ITEMS_BASE]
+      if (state.cloudreveEnabled) {
+        const cloudIdx = items.findIndex((i) => i.id === 'analysis')
+        items.splice(cloudIdx + 1, 0, { id: 'cloud-storage', label: '网盘', icon: 'cloud' })
+      }
+      return items
+    })
 
     const handleLogin = async ({ username, password }) => {
       loginError.value = ''
@@ -137,7 +148,7 @@ export default {
       fundsRefreshTrigger.value++
     }
 
-    onMounted(async () => {
+      onMounted(async () => {
       initRouter((pageId) => {
         currentPage.value = pageId
       })
@@ -148,6 +159,8 @@ export default {
         if (restored) {
           await actions.fetchAccounts()
         }
+        await actions.fetchCloudreveConfig()
+        await actions.fetchCloudreveStatus()
       }
       if (state.isAuthenticated && state.currentLedgerId) {
         currentPage.value = getPageFromPath()
@@ -163,7 +176,7 @@ export default {
       showAiChat,
       pageTitle,
       userName,
-      NAV_ITEMS,
+      navItems,
       handleLogin,
       handleRegister,
       handleLogout,
@@ -208,7 +221,7 @@ export default {
 
       <div v-else id="main-page" class="page active">
         <Sidebar
-          :nav-items="NAV_ITEMS"
+          :nav-items="navItems"
           :current-page="currentPage"
           :user-name="userName"
           :user-avatar="state.user?.avatar"
@@ -246,6 +259,11 @@ export default {
               v-show="currentPage === 'analysis'"
               :class="['view', { active: currentPage === 'analysis' }]"
             />
+            <CloudStorageView
+              v-show="currentPage === 'cloud-storage'"
+              :class="['view', { active: currentPage === 'cloud-storage' }]"
+              @navigate="navigateTo"
+            />
             <ApiDocsView
               v-show="currentPage === 'api-docs'"
               :class="['view', { active: currentPage === 'api-docs' }]"
@@ -253,6 +271,7 @@ export default {
             <SettingsView
               v-show="currentPage === 'settings'"
               :class="['view', { active: currentPage === 'settings' }]"
+              @navigate="navigateTo"
             />
           </div>
         </main>

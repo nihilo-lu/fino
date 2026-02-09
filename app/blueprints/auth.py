@@ -24,8 +24,8 @@ def login():
     from utils.auth_config import load_config
 
     data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
+    username = (data.get("username") or "").strip().lower()
+    password = data.get("password", "")
 
     if not username or not password:
         return api_error("用户名和密码不能为空", 400)
@@ -33,6 +33,9 @@ def login():
     try:
         config_path = current_app.config.get("CONFIG_PATH")
         config = load_config(config_path)
+        if not config:
+            logger.warning("Login: config not loaded, path=%s", config_path)
+            return api_error("登录失败: 配置文件无效", 500)
         usernames = config.get("credentials", {}).get("usernames", {})
 
         if username not in usernames:

@@ -401,6 +401,19 @@ class PostgreSQLManager:
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS cloudreve_bindings (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) NOT NULL UNIQUE,
+                cloudreve_url TEXT NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cloudreve_bindings_username ON cloudreve_bindings(username)')
+
         self.conn.commit()
 
     def _init_default_data(self):

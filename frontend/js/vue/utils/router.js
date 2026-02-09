@@ -10,6 +10,7 @@ const PATH_TO_PAGE = {
   '/transactions': 'transactions',
   '/funds': 'funds',
   '/analysis': 'analysis',
+  '/cloud-storage': 'cloud-storage',
   '/settings': 'settings',
   '/api-docs': 'api-docs'
 }
@@ -20,6 +21,7 @@ const PAGE_TO_PATH = {
   transactions: '/transactions',
   funds: '/funds',
   analysis: '/analysis',
+  'cloud-storage': '/cloud-storage',
   settings: '/settings',
   'api-docs': '/api-docs'
 }

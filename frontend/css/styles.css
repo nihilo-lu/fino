@@ -1733,3 +1733,124 @@ body {
 .ai-chat-send {
     align-self: flex-end;
 }
+
+/* Cloud Storage (Cloudreve) */
+.cloud-storage-view .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.cloud-storage-view .btn-link {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0 4px;
+}
+
+.cloud-storage-view .storage-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.cloud-storage-view .breadcrumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.cloud-storage-view .breadcrumb .btn-link {
+    font-size: 0.9rem;
+}
+
+.cloud-storage-view .storage-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.cloud-storage-view .new-folder-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.cloud-storage-view .new-folder-form input {
+    flex: 1;
+    max-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.cloud-storage-view .loading-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.cloud-storage-view .files-list {
+    background: var(--surface-color);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.cloud-storage-view .file-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.cloud-storage-view .file-item:last-child {
+    border-bottom: none;
+}
+
+.cloud-storage-view .file-item:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.cloud-storage-view .file-icon {
+    margin-right: 12px;
+    color: var(--secondary-color);
+    font-size: 1.25rem;
+}
+
+.cloud-storage-view .file-name {
+    flex: 1;
+    font-size: 0.95rem;
+}
+
+.cloud-storage-view .file-size {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    min-width: 70px;
+    text-align: right;
+}
+
+.cloud-storage-view .file-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 12px;
+}
+
+.cloudreve-bind-section .captcha-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cloudreve-bind-section .captcha-img {
+    height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}

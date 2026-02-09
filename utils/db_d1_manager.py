@@ -306,6 +306,15 @@ class D1Manager:
                 FOREIGN KEY (currency_id) REFERENCES currencies(id),
                 UNIQUE(ledger_id, account_id, code)
             )""",
+            """CREATE TABLE IF NOT EXISTS cloudreve_bindings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                cloudreve_url TEXT NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
         ]
         for sql in tables:
             self._execute(sql)

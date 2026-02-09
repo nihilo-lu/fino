@@ -10,7 +10,9 @@ const state = reactive({
   accounts: [],
   currentLedgerId: null,
   currentAccountId: null,
-  toast: null
+  toast: null,
+  cloudreveEnabled: false,
+  cloudreveBound: false
 })
 
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
@@ -446,6 +448,165 @@ const actions = {
       return true
     }
     showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async fetchCloudreveConfig() {
+    const response = await apiFetch(`${API_BASE}/cloudreve/config`)
+    const data = await parseJson(response)
+    const cfg = data?.data ?? data ?? { enabled: false }
+    state.cloudreveEnabled = !!cfg.enabled
+    return { enabled: !!cfg.enabled }
+  },
+
+  async saveCloudreveConfig(cfg) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('网盘配置已保存', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async fetchCloudreveStatus() {
+    const response = await apiFetch(`${API_BASE}/cloudreve/status`)
+    const data = await parseJson(response)
+    const st = data?.data ?? data ?? { bound: false }
+    state.cloudreveBound = !!st.bound
+    return { bound: !!st.bound, cloudreve_url: st.cloudreve_url }
+  },
+
+  async verifyCloudreveServer(url) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await apiFetch(`${API_BASE}/cloudreve/verify?url=${encodeURIComponent(url)}`, {
+        signal: controller.signal
+      })
+      if (response.unauthorized) return { valid: false, error: '请先登录' }
+      const data = await parseJson(response)
+      if (response.ok && data?.success) return data.data ?? data
+      let errMsg = data?.error || '无法连接该服务器'
+      if (errMsg === '无法连接该服务器' && typeof response.json === 'function') {
+        try {
+          const errBody = await response.json()
+          if (errBody?.error) errMsg = errBody.error
+        } catch (_) {}
+      }
+      return { valid: false, error: errMsg }
+    } catch (e) {
+      if (e?.name === 'AbortError') return { valid: false, error: '请求超时，请检查网络或服务器地址' }
+      throw e
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  },
+
+  async fetchCloudreveCaptcha(url) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/captcha?url=${encodeURIComponent(url)}`)
+    const data = await parseJson(response)
+    return response.ok && data?.success ? (data.data ?? data) : null
+  },
+
+  async bindCloudreve({ url, email, password, captcha, ticket }) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/bind`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, email, password, captcha: captcha || '', ticket: ticket || '' })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('绑定成功', 'success')
+      return true
+    }
+    let errMsg = data?.error || '绑定失败'
+    if (errMsg === '绑定失败' && typeof response.json === 'function') {
+      try {
+        const errBody = await response.json()
+        if (errBody?.error) errMsg = errBody.error
+      } catch (_) {}
+    }
+    showToast(errMsg, 'error')
+    return false
+  },
+
+  async unbindCloudreve() {
+    const response = await apiFetch(`${API_BASE}/cloudreve/unbind`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('已解绑', 'success')
+      return true
+    }
+    showToast(data?.error || '解绑失败', 'error')
+    return false
+  },
+
+  async fetchCloudreveFiles(uri, page = 0, pageSize = 50) {
+    const params = new URLSearchParams({ uri: uri || 'cloudreve://my/', page: String(page), page_size: String(pageSize) })
+    const response = await apiFetch(`${API_BASE}/cloudreve/files?${params}`)
+    const data = await parseJson(response)
+    if (!response.ok || !data?.success) return null
+    const raw = data.data ?? data
+    return { files: raw.files ?? raw.objects ?? [], parent: raw.parent ?? null }
+  },
+
+  async createCloudreveDownloadUrl(uri) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/download-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uri })
+    })
+    const data = await parseJson(response)
+    return response.ok && data?.success ? data.data : null
+  },
+
+  async uploadCloudreveFile(file, parentUri) {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('uri', parentUri || 'cloudreve://my/')
+    const response = await apiFetch(`${API_BASE}/cloudreve/upload`, { method: 'POST', body: form })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('上传成功', 'success')
+      return true
+    }
+    showToast(data?.error || '上传失败', 'error')
+    return false
+  },
+
+  async deleteCloudreveFile(uri) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uri })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('已删除', 'success')
+      return true
+    }
+    showToast(data?.error || '删除失败', 'error')
+    return false
+  },
+
+  async createCloudreveFolder(parentUri, name) {
+    const response = await apiFetch(`${API_BASE}/cloudreve/mkdir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_uri: parentUri || 'cloudreve://my/', name })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('文件夹已创建', 'success')
+      return true
+    }
+    showToast(data?.error || '创建失败', 'error')
     return false
   },
 

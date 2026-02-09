@@ -3,7 +3,8 @@ import { useStore } from '../store/index.js'
 
 export default {
   name: 'SettingsView',
-  setup() {
+  emits: ['navigate'],
+  setup(props, { emit }) {
     const { state, actions, isAdmin } = useStore()
     const apiToken = ref('')
     const tokenVisible = ref(false)
@@ -67,6 +68,20 @@ export default {
     })
     const aiConfigSaving = ref(false)
 
+    // 网盘存储（Cloudreve）
+    const cloudreveConfig = ref({ enabled: false })
+    const cloudreveStatus = ref({ bound: false })
+    const cloudreveServerUrl = ref('')
+    const cloudreveVerifyResult = ref(null)
+    const cloudreveBindEmail = ref('')
+    const cloudreveBindPassword = ref('')
+    const cloudreveCaptcha = ref(null)
+    const cloudreveCaptchaTicket = ref('')
+    const cloudreveCaptchaInput = ref('')
+    const cloudreveBinding = ref(false)
+    const cloudreveVerifying = ref(false)
+    const cloudreveConfigSaving = ref(false)
+
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
       return settingsAccounts.value
@@ -99,6 +114,98 @@ export default {
       if (!isAdmin.value) return
       const cfg = await actions.fetchAiConfig()
       if (cfg) aiConfig.value = { ...aiConfig.value, ...cfg }
+    }
+
+    const loadCloudreveConfig = async () => {
+      const cfg = await actions.fetchCloudreveConfig()
+      if (cfg) cloudreveConfig.value = cfg
+    }
+
+    const loadCloudreveStatus = async () => {
+      const st = await actions.fetchCloudreveStatus()
+      if (st) cloudreveStatus.value = st
+    }
+
+    const handleCloudreveConfigSave = async (e) => {
+      e.preventDefault()
+      if (!isAdmin.value) return
+      cloudreveConfigSaving.value = true
+      const ok = await actions.saveCloudreveConfig(cloudreveConfig.value)
+      cloudreveConfigSaving.value = false
+      if (ok) loadCloudreveConfig()
+    }
+
+    const handleCloudreveVerify = async () => {
+      if (!cloudreveServerUrl.value.trim()) {
+        actions.showToast('请输入服务器地址', 'warning')
+        return
+      }
+      cloudreveVerifying.value = true
+      cloudreveVerifyResult.value = null
+      try {
+        const result = await actions.verifyCloudreveServer(cloudreveServerUrl.value.trim())
+        cloudreveVerifyResult.value = result
+        if (result?.valid) {
+          actions.showToast('验证成功', 'success')
+        } else {
+          actions.showToast(result?.error || '无法连接该服务器', 'error')
+        }
+      } catch (e) {
+        console.error('Cloudreve 验证失败:', e)
+        actions.showToast('验证失败，请检查网络或服务器地址', 'error')
+      } finally {
+        cloudreveVerifying.value = false
+      }
+    }
+
+    const handleCloudreveOpenLogin = () => {
+      if (cloudreveVerifyResult.value?.login_url) {
+        window.open(cloudreveVerifyResult.value.login_url, '_blank')
+      }
+    }
+
+    const handleCloudreveFetchCaptcha = async () => {
+      if (!cloudreveServerUrl.value.trim()) {
+        actions.showToast('请先验证服务器', 'warning')
+        return
+      }
+      const cap = await actions.fetchCloudreveCaptcha(cloudreveServerUrl.value.trim())
+      if (cap) {
+        cloudreveCaptcha.value = cap
+        cloudreveCaptchaTicket.value = cap.ticket || ''
+        cloudreveCaptchaInput.value = ''
+      }
+    }
+
+    const handleCloudreveBind = async (e) => {
+      e.preventDefault()
+      if (!cloudreveServerUrl.value.trim() || !cloudreveBindEmail.value.trim() || !cloudreveBindPassword.value) {
+        actions.showToast('请填写完整', 'warning')
+        return
+      }
+      cloudreveBinding.value = true
+      const ok = await actions.bindCloudreve({
+        url: cloudreveServerUrl.value.trim(),
+        email: cloudreveBindEmail.value.trim(),
+        password: cloudreveBindPassword.value,
+        captcha: cloudreveCaptchaInput.value.trim(),
+        ticket: cloudreveCaptchaTicket.value || ''
+      })
+      cloudreveBinding.value = false
+      if (ok) {
+        cloudreveBindEmail.value = ''
+        cloudreveBindPassword.value = ''
+        cloudreveCaptchaInput.value = ''
+        cloudreveCaptcha.value = null
+        loadCloudreveStatus()
+        emit('navigate', 'cloud-storage')
+      }
+    }
+
+    const handleCloudreveUnbind = async () => {
+      if (!confirm('确定要解绑 Cloudreve 吗？')) return
+      const ok = await actions.unbindCloudreve()
+      if (ok) loadCloudreveStatus()
     }
 
     const handleAiConfigSave = async (e) => {
@@ -326,6 +433,8 @@ export default {
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
+      loadCloudreveConfig()
+      loadCloudreveStatus()
       if (isAdmin.value) {
         loadUsers()
         loadDatabaseConfig()
@@ -398,7 +507,26 @@ export default {
       aiConfig,
       aiConfigSaving,
       loadAiConfig,
-      handleAiConfigSave
+      handleAiConfigSave,
+      cloudreveConfig,
+      cloudreveStatus,
+      cloudreveServerUrl,
+      cloudreveVerifyResult,
+      cloudreveBindEmail,
+      cloudreveBindPassword,
+      cloudreveCaptcha,
+      cloudreveCaptchaInput,
+      cloudreveBinding,
+      cloudreveVerifying,
+      cloudreveConfigSaving,
+      loadCloudreveConfig,
+      loadCloudreveStatus,
+      handleCloudreveConfigSave,
+      handleCloudreveVerify,
+      handleCloudreveOpenLogin,
+      handleCloudreveFetchCaptcha,
+      handleCloudreveBind,
+      handleCloudreveUnbind
     }
   },
   template: `
@@ -561,6 +689,74 @@ export default {
             </div>
             <p class="form-hint">Token 在设置中生成，永久有效。重置后旧 Token 失效。请勿泄露给他人。</p>
           </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="card-header"><h3>☁️ 网盘存储（Cloudreve）</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">绑定 Cloudreve 网盘，在 Fino 中管理、上传文件。<a href="https://cloudrevev4.apifox.cn/" target="_blank" rel="noopener">API 文档</a></p>
+          <div v-if="isAdmin" style="margin-bottom: 20px;">
+            <form @submit="handleCloudreveConfigSave" class="inline-form">
+              <label class="checkbox-label" style="margin-right: 12px;">
+                <input v-model="cloudreveConfig.enabled" type="checkbox">
+                <span>开启网盘功能</span>
+              </label>
+              <button type="submit" class="btn btn-primary btn-sm" :disabled="cloudreveConfigSaving">
+                {{ cloudreveConfigSaving ? '保存中...' : '保存' }}
+              </button>
+            </form>
+          </div>
+          <template v-if="cloudreveConfig.enabled">
+            <div v-if="!cloudreveStatus.bound" class="cloudreve-bind-section">
+              <div class="form-group">
+                <label>Cloudreve 服务器地址</label>
+                <input v-model="cloudreveServerUrl" type="url" placeholder="https://your-cloudreve.com">
+              </div>
+              <div class="form-actions" style="margin-bottom: 16px;">
+                <button type="button" class="btn btn-outline" :disabled="cloudreveVerifying" @click="handleCloudreveVerify">
+                  {{ cloudreveVerifying ? '验证中...' : '验证' }}
+                </button>
+                <button v-if="cloudreveVerifyResult?.valid" type="button" class="btn btn-primary" @click="handleCloudreveOpenLogin">
+                  在新窗口打开 Cloudreve
+                </button>
+              </div>
+              <p v-if="cloudreveVerifyResult?.valid" class="form-hint" style="margin-bottom: 16px;">验证成功，填写 Cloudreve 账号密码即可绑定。若服务器启用验证码，绑定失败后再获取验证码。</p>
+              <form v-if="cloudreveVerifyResult?.valid" @submit="handleCloudreveBind">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>邮箱</label>
+                    <input v-model="cloudreveBindEmail" type="email" placeholder="Cloudreve 登录邮箱" required>
+                  </div>
+                  <div class="form-group">
+                    <label>密码</label>
+                    <input v-model="cloudreveBindPassword" type="password" placeholder="Cloudreve 密码" required>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>验证码 <span class="form-hint">（可选，若绑定失败提示需要时再获取）</span></label>
+                    <div class="captcha-row">
+                      <img v-if="cloudreveCaptcha?.image" :src="cloudreveCaptcha.image" alt="验证码" class="captcha-img">
+                      <button type="button" class="btn btn-outline btn-sm" @click="handleCloudreveFetchCaptcha">
+                        获取验证码
+                      </button>
+                      <input v-model="cloudreveCaptchaInput" type="text" placeholder="输入验证码" style="width: 100px;">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" :disabled="cloudreveBinding">
+                    {{ cloudreveBinding ? '绑定中...' : '绑定' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div v-else>
+              <p class="form-hint">已绑定 Cloudreve：{{ cloudreveStatus.cloudreve_url }}</p>
+              <button type="button" class="btn btn-outline" @click="handleCloudreveUnbind">解绑</button>
+            </div>
+          </template>
+          <p v-else class="form-hint">网盘功能未开启，请联系管理员开启。</p>
         </div>
       </div>
       <div class="form-card">

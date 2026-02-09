@@ -22,6 +22,7 @@ from app.blueprints.reference import reference_bp
 from app.blueprints.market import market_bp
 from app.blueprints.analysis import analysis_bp
 from app.blueprints.ai_chat import ai_bp
+from app.blueprints.cloudreve import cloudreve_bp
 
 
 def create_app(config_path: str | None = None) -> Flask:
@@ -91,6 +92,7 @@ def create_app(config_path: str | None = None) -> Flask:
     app.register_blueprint(market_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(ai_bp)
+    app.register_blueprint(cloudreve_bp)
 
     # 5. 配置日志
     logging.basicConfig(

@@ -30,6 +30,11 @@ ai:
   show_thinking: true                   # 是否显示思维链（推理模型如 o1/o3）
   context_messages: 20                   # 上下文记忆条数（最近的对话消息数）
 
+# Cloudreve 网盘存储（可选）
+cloudreve:
+  enabled: false   # 是否开启网盘功能，用户需在设置中绑定自己的 Cloudreve 服务器
+  verify_ssl: true  # 是否验证 SSL 证书，自签名证书请设为 false
+
 pwa:
   name: 投资追踪器
   short_name: 投资追踪

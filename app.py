@@ -25,4 +25,4 @@ if __name__ == "__main__":
     print("  投资追踪器 API 服务器")
     print("  地址: http://localhost:8085")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=8086, debug=True)
+    app.run(host="0.0.0.0", port=8087, debug=True)
