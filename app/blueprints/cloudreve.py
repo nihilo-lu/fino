@@ -23,11 +23,12 @@ def _get_username():
 
 
 def _cloudreve_enabled():
-    """检查 Cloudreve 功能是否在配置中开启"""
+    """检查 Cloudreve 功能是否在配置中开启（支持 lab.cloudreve 与旧版 cloudreve）"""
     try:
         from utils.auth_config import load_config
-        cfg = load_config(current_app.config.get("CONFIG_PATH"))
-        return bool(cfg.get("cloudreve", {}).get("enabled", False))
+        cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
+        cr = cfg.get("lab", {}).get("cloudreve") or cfg.get("cloudreve") or {}
+        return bool(cr.get("enabled", False))
     except Exception:
         return False
 
@@ -165,11 +166,12 @@ def _cloudreve_request(method: str, base_url: str, path: str, token: str = None,
     if token:
         headers["Authorization"] = f"Bearer {token}"
     kwargs.setdefault("timeout", 10)
-    # 支持自签名证书：cloudreve.verify_ssl: false
+    # 支持自签名证书：lab.cloudreve.verify_ssl: false
     try:
         from utils.auth_config import load_config
         cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
-        if cfg.get("cloudreve", {}).get("verify_ssl", True) is False:
+        cr = cfg.get("lab", {}).get("cloudreve") or cfg.get("cloudreve") or {}
+        if cr.get("verify_ssl", True) is False:
             kwargs["verify"] = False
     except Exception:
         pass
@@ -226,9 +228,11 @@ def save_config():
         cfg = load_config(current_app.config.get("CONFIG_PATH"))
         if not cfg:
             return api_error("无法读取配置文件，请确认 conf/config.yaml 存在", 500)
-        if "cloudreve" not in cfg:
-            cfg["cloudreve"] = {}
-        cfg["cloudreve"]["enabled"] = enabled
+        if "lab" not in cfg:
+            cfg["lab"] = {}
+        if "cloudreve" not in cfg["lab"]:
+            cfg["lab"]["cloudreve"] = {}
+        cfg["lab"]["cloudreve"]["enabled"] = enabled
         if not _save_config(current_app.config.get("CONFIG_PATH"), cfg):
             return api_error("保存配置失败", 500)
         return api_success(message="已保存")

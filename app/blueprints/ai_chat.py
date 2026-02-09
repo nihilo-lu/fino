@@ -23,11 +23,11 @@ _DEFAULT_AI = {
 
 
 def _get_ai_config():
-    """从 config.yaml 读取 AI 配置"""
+    """从 config.yaml 读取 AI 配置（支持 lab.ai 与旧版 ai）"""
     try:
         from utils.auth_config import load_config
         cfg = load_config(current_app.config.get("CONFIG_PATH"))
-        ai = (cfg or {}).get("ai") or {}
+        ai = (cfg or {}).get("lab", {}).get("ai") or (cfg or {}).get("ai") or {}
         out = _DEFAULT_AI.copy()
         for k, v in ai.items():
             if v is not None:
@@ -38,11 +38,13 @@ def _get_ai_config():
 
 
 def _save_ai_config(cfg: dict) -> bool:
-    """保存 AI 配置到 config.yaml"""
+    """保存 AI 配置到 config.yaml（lab.ai）"""
     try:
         from utils.auth_config import load_config, save_config
         full = load_config(current_app.config.get("CONFIG_PATH")) or {}
-        full["ai"] = cfg
+        if "lab" not in full:
+            full["lab"] = {}
+        full["lab"]["ai"] = cfg
         return save_config(current_app.config.get("CONFIG_PATH"), full)
     except Exception:
         return False

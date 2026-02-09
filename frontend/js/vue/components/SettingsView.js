@@ -82,6 +82,19 @@ export default {
     const cloudreveVerifying = ref(false)
     const cloudreveConfigSaving = ref(false)
 
+    const activeTab = ref('profile')
+
+    const tabs = computed(() => [
+      { id: 'profile', label: '个人', icon: 'person' },
+      { id: 'data', label: '数据', icon: 'folder' },
+      { id: 'system', label: '系统', icon: 'settings' },
+      { id: 'lab', label: '实验室', icon: 'science', badge: 'Beta' }
+    ])
+
+    const switchTab = (id) => {
+      activeTab.value = id
+    }
+
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
       return settingsAccounts.value
@@ -447,6 +460,9 @@ export default {
     watch(accountLedgerId, loadSettingsAccounts)
 
     return {
+      activeTab,
+      tabs,
+      switchTab,
       displayAccounts,
       state,
       actions,
@@ -531,6 +547,23 @@ export default {
   },
   template: `
     <div id="settings-view" class="view">
+      <div class="settings-tabs-wrap">
+        <div class="settings-tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            type="button"
+            :class="['settings-tab', { active: activeTab === tab.id }]"
+            @click="switchTab(tab.id)"
+          >
+            <span class="material-icons">{{ tab.icon }}</span>
+            {{ tab.label }}
+            <span v-if="tab.badge" class="settings-tab-badge">{{ tab.badge }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-show="activeTab === 'profile'" class="settings-panel">
       <div class="form-card">
         <div class="card-header"><h3>👤 用户资料</h3></div>
         <div class="card-body">
@@ -600,65 +633,6 @@ export default {
         </div>
       </div>
       <div class="form-card">
-        <div class="card-header"><h3>📱 PWA 应用配置</h3></div>
-        <div class="card-body">
-          <p class="form-hint" style="margin-bottom: 16px;">自定义安装到主屏幕时的应用名称、图标和主题色</p>
-          <form @submit="handlePwaSave">
-            <div class="form-row">
-              <div class="form-group">
-                <label>应用名称</label>
-                <input v-model="pwaConfig.name" type="text" placeholder="如：投资追踪器">
-              </div>
-              <div class="form-group">
-                <label>短名称</label>
-                <input v-model="pwaConfig.short_name" type="text" placeholder="如：投资追踪">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>应用描述</label>
-                <input v-model="pwaConfig.description" type="text" placeholder="投资组合追踪与收益分析工具">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>主题色</label>
-                <input v-model="pwaConfig.theme_color" type="text" placeholder="#E8A317">
-              </div>
-              <div class="form-group">
-                <label>背景色</label>
-                <input v-model="pwaConfig.background_color" type="text" placeholder="#ffffff">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>启动方式</label>
-                <select v-model="pwaConfig.display">
-                  <option value="standalone">独立应用（推荐）</option>
-                  <option value="minimal-ui">最小浏览器 UI</option>
-                  <option value="browser">浏览器</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>图标 192×192</label>
-                <input v-model="pwaConfig.icon_192" type="text" placeholder="/frontend/icons/icon-192.png">
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>图标 512×512</label>
-                <input v-model="pwaConfig.icon_512" type="text" placeholder="/frontend/icons/icon-512.png">
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary" :disabled="pwaSaving">
-                {{ pwaSaving ? '保存中...' : '💾 保存 PWA 配置' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <div class="form-card">
         <div class="card-header"><h3>API 访问令牌</h3></div>
         <div class="card-body">
           <div class="form-group">
@@ -691,74 +665,9 @@ export default {
           </div>
         </div>
       </div>
-      <div class="form-card">
-        <div class="card-header"><h3>☁️ 网盘存储（Cloudreve）</h3></div>
-        <div class="card-body">
-          <p class="form-hint" style="margin-bottom: 16px;">绑定 Cloudreve 网盘，在 Fino 中管理、上传文件。<a href="https://cloudrevev4.apifox.cn/" target="_blank" rel="noopener">API 文档</a></p>
-          <div v-if="isAdmin" style="margin-bottom: 20px;">
-            <form @submit="handleCloudreveConfigSave" class="inline-form">
-              <label class="checkbox-label" style="margin-right: 12px;">
-                <input v-model="cloudreveConfig.enabled" type="checkbox">
-                <span>开启网盘功能</span>
-              </label>
-              <button type="submit" class="btn btn-primary btn-sm" :disabled="cloudreveConfigSaving">
-                {{ cloudreveConfigSaving ? '保存中...' : '保存' }}
-              </button>
-            </form>
-          </div>
-          <template v-if="cloudreveConfig.enabled">
-            <div v-if="!cloudreveStatus.bound" class="cloudreve-bind-section">
-              <div class="form-group">
-                <label>Cloudreve 服务器地址</label>
-                <input v-model="cloudreveServerUrl" type="url" placeholder="https://your-cloudreve.com">
-              </div>
-              <div class="form-actions" style="margin-bottom: 16px;">
-                <button type="button" class="btn btn-outline" :disabled="cloudreveVerifying" @click="handleCloudreveVerify">
-                  {{ cloudreveVerifying ? '验证中...' : '验证' }}
-                </button>
-                <button v-if="cloudreveVerifyResult?.valid" type="button" class="btn btn-primary" @click="handleCloudreveOpenLogin">
-                  在新窗口打开 Cloudreve
-                </button>
-              </div>
-              <p v-if="cloudreveVerifyResult?.valid" class="form-hint" style="margin-bottom: 16px;">验证成功，填写 Cloudreve 账号密码即可绑定。若服务器启用验证码，绑定失败后再获取验证码。</p>
-              <form v-if="cloudreveVerifyResult?.valid" @submit="handleCloudreveBind">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>邮箱</label>
-                    <input v-model="cloudreveBindEmail" type="email" placeholder="Cloudreve 登录邮箱" required>
-                  </div>
-                  <div class="form-group">
-                    <label>密码</label>
-                    <input v-model="cloudreveBindPassword" type="password" placeholder="Cloudreve 密码" required>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>验证码 <span class="form-hint">（可选，若绑定失败提示需要时再获取）</span></label>
-                    <div class="captcha-row">
-                      <img v-if="cloudreveCaptcha?.image" :src="cloudreveCaptcha.image" alt="验证码" class="captcha-img">
-                      <button type="button" class="btn btn-outline btn-sm" @click="handleCloudreveFetchCaptcha">
-                        获取验证码
-                      </button>
-                      <input v-model="cloudreveCaptchaInput" type="text" placeholder="输入验证码" style="width: 100px;">
-                    </div>
-                  </div>
-                </div>
-                <div class="form-actions">
-                  <button type="submit" class="btn btn-primary" :disabled="cloudreveBinding">
-                    {{ cloudreveBinding ? '绑定中...' : '绑定' }}
-                  </button>
-                </div>
-              </form>
-            </div>
-            <div v-else>
-              <p class="form-hint">已绑定 Cloudreve：{{ cloudreveStatus.cloudreve_url }}</p>
-              <button type="button" class="btn btn-outline" @click="handleCloudreveUnbind">解绑</button>
-            </div>
-          </template>
-          <p v-else class="form-hint">网盘功能未开启，请联系管理员开启。</p>
-        </div>
       </div>
+
+      <div v-show="activeTab === 'data'" class="settings-panel">
       <div class="form-card">
         <div class="card-header"><h3>账本管理</h3></div>
         <div class="card-body">
@@ -839,6 +748,68 @@ export default {
             </div>
             <p v-if="displayAccounts.length === 0" class="empty-message">暂无账户</p>
           </div>
+        </div>
+      </div>
+      </div>
+
+      <div v-show="activeTab === 'system'" class="settings-panel">
+      <div class="form-card">
+        <div class="card-header"><h3>📱 PWA 应用配置</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">自定义安装到主屏幕时的应用名称、图标和主题色</p>
+          <form @submit="handlePwaSave">
+            <div class="form-row">
+              <div class="form-group">
+                <label>应用名称</label>
+                <input v-model="pwaConfig.name" type="text" placeholder="如：投资追踪器">
+              </div>
+              <div class="form-group">
+                <label>短名称</label>
+                <input v-model="pwaConfig.short_name" type="text" placeholder="如：投资追踪">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>应用描述</label>
+                <input v-model="pwaConfig.description" type="text" placeholder="投资组合追踪与收益分析工具">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>主题色</label>
+                <input v-model="pwaConfig.theme_color" type="text" placeholder="#E8A317">
+              </div>
+              <div class="form-group">
+                <label>背景色</label>
+                <input v-model="pwaConfig.background_color" type="text" placeholder="#ffffff">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>启动方式</label>
+                <select v-model="pwaConfig.display">
+                  <option value="standalone">独立应用（推荐）</option>
+                  <option value="minimal-ui">最小浏览器 UI</option>
+                  <option value="browser">浏览器</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>图标 192×192</label>
+                <input v-model="pwaConfig.icon_192" type="text" placeholder="/frontend/icons/icon-192.png">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>图标 512×512</label>
+                <input v-model="pwaConfig.icon_512" type="text" placeholder="/frontend/icons/icon-512.png">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="pwaSaving">
+                {{ pwaSaving ? '保存中...' : '💾 保存 PWA 配置' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
       <div v-if="isAdmin" class="form-card">
@@ -991,8 +962,79 @@ export default {
           </form>
         </div>
       </div>
+      </div>
+
+      <div v-show="activeTab === 'lab'" class="settings-panel">
+      <div class="form-card">
+        <div class="card-header"><h3>☁️ 网盘存储（Cloudreve）</h3><span class="badge badge-beta">Beta</span></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">绑定 Cloudreve 网盘，在 Fino 中管理、上传文件。<a href="https://cloudrevev4.apifox.cn/" target="_blank" rel="noopener">API 文档</a></p>
+          <div v-if="isAdmin" style="margin-bottom: 20px;">
+            <form @submit="handleCloudreveConfigSave" class="inline-form">
+              <label class="checkbox-label" style="margin-right: 12px;">
+                <input v-model="cloudreveConfig.enabled" type="checkbox">
+                <span>开启网盘功能</span>
+              </label>
+              <button type="submit" class="btn btn-primary btn-sm" :disabled="cloudreveConfigSaving">
+                {{ cloudreveConfigSaving ? '保存中...' : '保存' }}
+              </button>
+            </form>
+          </div>
+          <template v-if="cloudreveConfig.enabled">
+            <div v-if="!cloudreveStatus.bound" class="cloudreve-bind-section">
+              <div class="form-group">
+                <label>Cloudreve 服务器地址</label>
+                <input v-model="cloudreveServerUrl" type="url" placeholder="https://your-cloudreve.com">
+              </div>
+              <div class="form-actions" style="margin-bottom: 16px;">
+                <button type="button" class="btn btn-outline" :disabled="cloudreveVerifying" @click="handleCloudreveVerify">
+                  {{ cloudreveVerifying ? '验证中...' : '验证' }}
+                </button>
+                <button v-if="cloudreveVerifyResult?.valid" type="button" class="btn btn-primary" @click="handleCloudreveOpenLogin">
+                  在新窗口打开 Cloudreve
+                </button>
+              </div>
+              <p v-if="cloudreveVerifyResult?.valid" class="form-hint" style="margin-bottom: 16px;">验证成功，填写 Cloudreve 账号密码即可绑定。若服务器启用验证码，绑定失败后再获取验证码。</p>
+              <form v-if="cloudreveVerifyResult?.valid" @submit="handleCloudreveBind">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>邮箱</label>
+                    <input v-model="cloudreveBindEmail" type="email" placeholder="Cloudreve 登录邮箱" required>
+                  </div>
+                  <div class="form-group">
+                    <label>密码</label>
+                    <input v-model="cloudreveBindPassword" type="password" placeholder="Cloudreve 密码" required>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>验证码 <span class="form-hint">（可选，若绑定失败提示需要时再获取）</span></label>
+                    <div class="captcha-row">
+                      <img v-if="cloudreveCaptcha?.image" :src="cloudreveCaptcha.image" alt="验证码" class="captcha-img">
+                      <button type="button" class="btn btn-outline btn-sm" @click="handleCloudreveFetchCaptcha">
+                        获取验证码
+                      </button>
+                      <input v-model="cloudreveCaptchaInput" type="text" placeholder="输入验证码" style="width: 100px;">
+                    </div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" :disabled="cloudreveBinding">
+                    {{ cloudreveBinding ? '绑定中...' : '绑定' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div v-else>
+              <p class="form-hint">已绑定 Cloudreve：{{ cloudreveStatus.cloudreve_url }}</p>
+              <button type="button" class="btn btn-outline" @click="handleCloudreveUnbind">解绑</button>
+            </div>
+          </template>
+          <p v-else class="form-hint">网盘功能未开启，请联系管理员开启。</p>
+        </div>
+      </div>
       <div v-if="isAdmin" class="form-card">
-        <div class="card-header"><h3>🤖 AI 聊天配置</h3></div>
+        <div class="card-header"><h3>🤖 AI 聊天配置</h3><span class="badge badge-beta">Beta</span></div>
         <div class="card-body">
           <p class="form-hint" style="margin-bottom: 16px;">配置 AI 聊天功能，支持 OpenAI 通用格式 API。可配置第三方兼容服务（如 OpenAI、Azure、国内大模型等）。支持显示思维链（推理模型如 o1/o3）。</p>
           <form @submit="handleAiConfigSave">
@@ -1029,6 +1071,7 @@ export default {
             </div>
           </form>
         </div>
+      </div>
       </div>
     </div>
   `

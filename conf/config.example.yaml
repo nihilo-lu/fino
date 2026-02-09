@@ -1,4 +1,6 @@
 # 配置文件模板 - 复制为 config.yaml 后修改
+
+# ========== 数据库 ==========
 database:
   type: sqlite  # sqlite | postgresql | d1
   sqlite:
@@ -14,6 +16,8 @@ database:
     account_id: ''   # Cloudflare 账户 ID
     database_id: ''  # D1 数据库 UUID
     api_token: ''    # D1 读写权限的 API Token
+
+# ========== 认证 ==========
 cookie:
   expiry_days: 30
   key: your_secret_key_change_me
@@ -22,19 +26,22 @@ credentials:
   usernames: {}
 pre-authorized:
   emails: []
-# AI 聊天配置（支持 OpenAI 通用格式，支持思维链）
-ai:
-  base_url: https://api.openai.com/v1   # API 地址，兼容 OpenAI 格式
-  api_key: ''                            # API Key
-  model: gpt-4o-mini                     # 模型名称
-  show_thinking: true                   # 是否显示思维链（推理模型如 o1/o3）
-  context_messages: 20                   # 上下文记忆条数（最近的对话消息数）
 
-# Cloudreve 网盘存储（可选）
-cloudreve:
-  enabled: false   # 是否开启网盘功能，用户需在设置中绑定自己的 Cloudreve 服务器
-  verify_ssl: true  # 是否验证 SSL 证书，自签名证书请设为 false
+# ========== 实验室（Beta 功能）==========
+lab:
+  # AI 聊天（支持 OpenAI 通用格式，支持思维链）
+  ai:
+    base_url: https://api.openai.com/v1   # API 地址，兼容 OpenAI 格式
+    api_key: ''                            # API Key
+    model: gpt-4o-mini                     # 模型名称
+    show_thinking: true                   # 是否显示思维链（推理模型如 o1/o3）
+    context_messages: 20                   # 上下文记忆条数（最近的对话消息数）
+  # Cloudreve 网盘存储（可选）
+  cloudreve:
+    enabled: false   # 是否开启网盘功能，用户需在设置中绑定自己的 Cloudreve 服务器
+    verify_ssl: true  # 是否验证 SSL 证书，自签名证书请设为 false
 
+# ========== PWA 应用 ==========
 pwa:
   name: 投资追踪器
   short_name: 投资追踪
