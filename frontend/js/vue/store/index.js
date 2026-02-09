@@ -428,6 +428,27 @@ const actions = {
     return false
   },
 
+  async fetchAiConfig() {
+    const response = await apiFetch(`${API_BASE}/ai/config`)
+    const data = await parseJson(response)
+    return data?.data || data
+  },
+
+  async saveAiConfig(cfg) {
+    const response = await apiFetch(`${API_BASE}/ai/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('AI 配置已保存', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
   async testDatabaseConnection(cfg) {
     const response = await apiFetch(`${API_BASE}/database/test`, {
       method: 'POST',

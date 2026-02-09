@@ -16,6 +16,8 @@ import SettingsView from './components/SettingsView.js'
 import ApiDocsView from './components/ApiDocsView.js'
 import Toast from './components/Toast.js'
 import FundModal from './components/FundModal.js'
+import AiChatButton from './components/AiChatButton.js'
+import AiChatWindow from './components/AiChatWindow.js'
 
 const PAGE_TITLES = {
   dashboard: '仪表盘',
@@ -53,7 +55,9 @@ export default {
     SettingsView,
     ApiDocsView,
     Toast,
-    FundModal
+    FundModal,
+    AiChatButton,
+    AiChatWindow
   },
   setup() {
     const { state, actions } = useStore()
@@ -62,6 +66,7 @@ export default {
     const sidebarCollapsed = ref(false)
     const showFundModal = ref(false)
     const fundsRefreshTrigger = ref(0)
+    const showAiChat = ref(false)
     const loginError = ref('')
     const registerError = ref('')
     const registerSuccess = ref('')
@@ -155,6 +160,7 @@ export default {
       currentPage,
       sidebarCollapsed,
       showFundModal,
+      showAiChat,
       pageTitle,
       userName,
       NAV_ITEMS,
@@ -257,6 +263,11 @@ export default {
         :show="showFundModal"
         @close="showFundModal = false"
         @submitted="handleFundSubmitted"
+      />
+      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId" @click="showAiChat = true" />
+      <AiChatWindow
+        :show="showAiChat"
+        @close="showAiChat = false"
       />
     </div>
   `

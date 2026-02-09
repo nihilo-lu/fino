@@ -6,3 +6,4 @@ PyYAML>=6.0
 PyJWT>=2.0
 pandas>=1.5
 akshare>=1.0
+requests>=2.28

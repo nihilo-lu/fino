@@ -22,6 +22,14 @@ credentials:
   usernames: {}
 pre-authorized:
   emails: []
+# AI 聊天配置（支持 OpenAI 通用格式，支持思维链）
+ai:
+  base_url: https://api.openai.com/v1   # API 地址，兼容 OpenAI 格式
+  api_key: ''                            # API Key
+  model: gpt-4o-mini                     # 模型名称
+  show_thinking: true                   # 是否显示思维链（推理模型如 o1/o3）
+  context_messages: 20                   # 上下文记忆条数（最近的对话消息数）
+
 pwa:
   name: 投资追踪器
   short_name: 投资追踪

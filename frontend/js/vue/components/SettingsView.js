@@ -57,6 +57,16 @@ export default {
     const dbConfigSaving = ref(false)
     const dbConfigTesting = ref(false)
 
+    // AI 配置（仅管理员）
+    const aiConfig = ref({
+      base_url: 'https://api.openai.com/v1',
+      api_key: '',
+      model: 'gpt-4o-mini',
+      show_thinking: true,
+      context_messages: 20
+    })
+    const aiConfigSaving = ref(false)
+
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
       return settingsAccounts.value
@@ -83,6 +93,21 @@ export default {
       if (!isAdmin.value) return
       const cfg = await actions.fetchDatabaseConfig()
       if (cfg) dbConfig.value = { ...dbConfig.value, ...cfg }
+    }
+
+    const loadAiConfig = async () => {
+      if (!isAdmin.value) return
+      const cfg = await actions.fetchAiConfig()
+      if (cfg) aiConfig.value = { ...aiConfig.value, ...cfg }
+    }
+
+    const handleAiConfigSave = async (e) => {
+      e.preventDefault()
+      if (!isAdmin.value) return
+      aiConfigSaving.value = true
+      const ok = await actions.saveAiConfig(aiConfig.value)
+      aiConfigSaving.value = false
+      if (ok) loadAiConfig()
     }
 
     const handleDatabaseSave = async (e) => {
@@ -304,6 +329,7 @@ export default {
       if (isAdmin.value) {
         loadUsers()
         loadDatabaseConfig()
+        loadAiConfig()
       }
     })
     watch(() => state.ledgers, () => {
@@ -368,7 +394,11 @@ export default {
       dbConfigTesting,
       loadDatabaseConfig,
       handleDatabaseSave,
-      handleDatabaseTest
+      handleDatabaseTest,
+      aiConfig,
+      aiConfigSaving,
+      loadAiConfig,
+      handleAiConfigSave
     }
   },
   template: `
@@ -760,6 +790,45 @@ export default {
               </button>
               <button type="submit" class="btn btn-primary" :disabled="dbConfigSaving">
                 {{ dbConfigSaving ? '保存中...' : '💾 保存配置' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="form-card">
+        <div class="card-header"><h3>🤖 AI 聊天配置</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">配置 AI 聊天功能，支持 OpenAI 通用格式 API。可配置第三方兼容服务（如 OpenAI、Azure、国内大模型等）。支持显示思维链（推理模型如 o1/o3）。</p>
+          <form @submit="handleAiConfigSave">
+            <div class="form-group">
+              <label>API 地址</label>
+              <input v-model="aiConfig.base_url" type="text" placeholder="https://api.openai.com/v1">
+              <p class="form-hint">兼容 OpenAI 格式的 API 地址，如 OpenAI、Azure、国内大模型代理等</p>
+            </div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input v-model="aiConfig.api_key" type="password" placeholder="sk-xxx（留空保留原配置）">
+            </div>
+            <div class="form-group">
+              <label>模型名称</label>
+              <input v-model="aiConfig.model" type="text" placeholder="gpt-4o-mini">
+              <p class="form-hint">如 gpt-4o、gpt-4o-mini、o1-mini 等</p>
+            </div>
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input v-model="aiConfig.show_thinking" type="checkbox">
+                <span>显示思维链</span>
+              </label>
+              <p class="form-hint">若模型支持推理（如 o1/o3），在回复中展示思考过程</p>
+            </div>
+            <div class="form-group">
+              <label>上下文记忆条数</label>
+              <input v-model.number="aiConfig.context_messages" type="number" min="1" max="100" placeholder="20">
+              <p class="form-hint">保留最近 N 条对话消息作为上下文，影响 AI 的记忆能力</p>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="aiConfigSaving">
+                {{ aiConfigSaving ? '保存中...' : '💾 保存 AI 配置' }}
               </button>
             </div>
           </form>
