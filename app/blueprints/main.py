@@ -83,6 +83,7 @@ def index():
 @main_bp.route("/add-transaction")
 @main_bp.route("/analysis")
 @main_bp.route("/settings")
+@main_bp.route("/api-docs")
 def spa_pages():
     return _render_index(_get_pwa_config())
 

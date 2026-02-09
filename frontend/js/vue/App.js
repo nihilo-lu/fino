@@ -14,6 +14,7 @@ import FundsView from './components/FundsView.js'
 import AddTransactionView from './components/AddTransactionView.js'
 import AnalysisView from './components/AnalysisView.js'
 import SettingsView from './components/SettingsView.js'
+import ApiDocsView from './components/ApiDocsView.js'
 import Toast from './components/Toast.js'
 import FundModal from './components/FundModal.js'
 
@@ -24,7 +25,8 @@ const PAGE_TITLES = {
   funds: '资金明细',
   'add-transaction': '添加交易',
   analysis: '收益分析',
-  settings: '设置'
+  settings: '设置',
+  'api-docs': 'API 文档'
 }
 
 const NAV_ITEMS = [
@@ -34,6 +36,7 @@ const NAV_ITEMS = [
   { id: 'funds', label: '资金明细', icon: 'payments' },
   { id: 'add-transaction', label: '添加交易', icon: 'add_circle' },
   { id: 'analysis', label: '收益分析', icon: 'analytics' },
+  { id: 'api-docs', label: 'API 文档', icon: 'code' },
   { id: 'settings', label: '设置', icon: 'settings' }
 ]
 
@@ -52,6 +55,7 @@ export default {
     AddTransactionView,
     AnalysisView,
     SettingsView,
+    ApiDocsView,
     Toast,
     FundModal
   },
@@ -245,6 +249,10 @@ export default {
             <AnalysisView
               v-show="currentPage === 'analysis'"
               :class="['view', { active: currentPage === 'analysis' }]"
+            />
+            <ApiDocsView
+              v-show="currentPage === 'api-docs'"
+              :class="['view', { active: currentPage === 'api-docs' }]"
             />
             <SettingsView
               v-show="currentPage === 'settings'"

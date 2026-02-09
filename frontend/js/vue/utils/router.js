@@ -11,7 +11,8 @@ const PATH_TO_PAGE = {
   '/funds': 'funds',
   '/add-transaction': 'add-transaction',
   '/analysis': 'analysis',
-  '/settings': 'settings'
+  '/settings': 'settings',
+  '/api-docs': 'api-docs'
 }
 
 const PAGE_TO_PATH = {
@@ -21,7 +22,8 @@ const PAGE_TO_PATH = {
   funds: '/funds',
   'add-transaction': '/add-transaction',
   analysis: '/analysis',
-  settings: '/settings'
+  settings: '/settings',
+  'api-docs': '/api-docs'
 }
 
 export function getPageFromPath() {
