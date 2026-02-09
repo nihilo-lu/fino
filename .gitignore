@@ -55,3 +55,6 @@ logs/
 .coverage
 htmlcov/
 .tox/
+
+# 用户上传（头像等）
+uploads/

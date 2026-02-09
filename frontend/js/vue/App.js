@@ -215,6 +215,7 @@ export default {
           :nav-items="NAV_ITEMS"
           :current-page="currentPage"
           :user-name="userName"
+          :user-avatar="state.user?.avatar"
           :collapsed="sidebarCollapsed"
           @navigate="navigateTo"
           @logout="handleLogout"

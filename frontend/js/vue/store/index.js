@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, computed } from 'vue'
 import { apiFetch, apiGet, apiPost, apiDelete } from '../utils/api.js'
 
 const API_BASE = '/api'
@@ -12,6 +12,8 @@ const state = reactive({
   currentAccountId: null,
   toast: null
 })
+
+const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
 
 function setToast(fn) {
   state.toast = fn
@@ -41,7 +43,7 @@ const actions = {
         const data = await response.json()
         const u = data.data || data
         if (u?.username) {
-          state.user = { username: u.username, name: u.name || u.username, email: u.email, roles: u.roles || [] }
+          state.user = { username: u.username, name: u.name || u.username, email: u.email, roles: u.roles || [], avatar: u.avatar }
           state.isAuthenticated = true
           return true
         }
@@ -64,7 +66,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       const u = data.data || data
-      state.user = { username: u.username, name: u.name || u.username, email: u.email, roles: u.roles || [] }
+      state.user = { username: u.username, name: u.name || u.username, email: u.email, roles: u.roles || [], avatar: u.avatar }
       state.isAuthenticated = true
       localStorage.setItem('user_data', JSON.stringify(state.user))
       return { success: true }
@@ -292,6 +294,104 @@ const actions = {
     return data?.data || data
   },
 
+  async updateProfile({ username, nickname, email }) {
+    const response = await apiFetch(`${API_BASE}/auth/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, nickname, email })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      const u = data.data || data
+      state.user = { ...state.user, username: u.username, name: u.name || u.username, email: u.email, avatar: u.avatar }
+      showToast('资料已更新', 'success')
+      return { success: true }
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return { success: false, error: data?.error }
+  },
+
+  async updatePassword({ current_password, new_password, new_password_repeat }) {
+    const response = await apiFetch(`${API_BASE}/auth/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password, new_password, new_password_repeat })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('密码已更新', 'success')
+      return { success: true }
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return { success: false, error: data?.error }
+  },
+
+  async fetchUsers() {
+    const response = await apiFetch(`${API_BASE}/auth/users`)
+    const data = await parseJson(response)
+    return data?.data?.users ?? data?.users ?? []
+  },
+
+  async addUser({ username, email, password, is_admin }) {
+    const response = await apiFetch(`${API_BASE}/auth/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password, is_admin })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('用户已添加', 'success')
+      return true
+    }
+    showToast(data?.error || '添加失败', 'error')
+    return false
+  },
+
+  async updateUser(username, { disabled, is_admin }) {
+    const response = await apiFetch(`${API_BASE}/auth/users/${encodeURIComponent(username)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled, is_admin })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('已更新', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return false
+  },
+
+  async deleteUser(username) {
+    const response = await apiFetch(`${API_BASE}/auth/users/${encodeURIComponent(username)}`, { method: 'DELETE' })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('已删除', 'success')
+      return true
+    }
+    showToast(data?.error || '删除失败', 'error')
+    return false
+  },
+
+  async uploadAvatar(file) {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    const response = await fetch(`${API_BASE}/auth/avatar`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include'
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      const url = data.data?.avatar
+      if (url) state.user = { ...state.user, avatar: url }
+      showToast('头像已更新', 'success')
+      return { success: true, avatar: url }
+    }
+    showToast(data?.error || '上传失败', 'error')
+    return { success: false, error: data?.error }
+  },
+
   async savePwaConfig(pwa) {
     const response = await apiFetch(`${API_BASE}/pwa/config`, {
       method: 'PUT',
@@ -448,5 +548,5 @@ const actions = {
 }
 
 export function useStore() {
-  return { state, actions }
+  return { state, actions, isAdmin }
 }

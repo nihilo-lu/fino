@@ -4,7 +4,7 @@ import { useStore } from '../store/index.js'
 export default {
   name: 'SettingsView',
   setup() {
-    const { state, actions } = useStore()
+    const { state, actions, isAdmin } = useStore()
     const apiToken = ref('')
     const tokenVisible = ref(false)
     const pwaConfig = ref({
@@ -25,6 +25,27 @@ export default {
     const newAccountType = ref('股票')
     const newAccountCurrency = ref('CNY')
     const settingsAccounts = ref([])
+
+    // 用户资料
+    const profileUsername = ref('')
+    const profileNickname = ref('')
+    const profileEmail = ref('')
+    const profileSaving = ref(false)
+    const currentPassword = ref('')
+    const newPassword = ref('')
+    const newPasswordRepeat = ref('')
+    const passwordSaving = ref(false)
+    const avatarFile = ref(null)
+    const avatarUploading = ref(false)
+    const avatarInputKey = ref(0)
+
+    // 用户管理（仅管理员）
+    const users = ref([])
+    const newUserUsername = ref('')
+    const newUserEmail = ref('')
+    const newUserPassword = ref('')
+    const newUserIsAdmin = ref(false)
+    const usersLoading = ref(false)
 
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
@@ -126,12 +147,131 @@ export default {
       }
     }
 
+    const loadProfile = () => {
+      profileUsername.value = state.user?.username || ''
+      profileNickname.value = state.user?.name || ''
+      profileEmail.value = state.user?.email || ''
+    }
+
+    const handleProfileSubmit = async (e) => {
+      e.preventDefault()
+      profileSaving.value = true
+      const result = await actions.updateProfile({
+        username: profileUsername.value.trim(),
+        nickname: profileNickname.value.trim(),
+        email: profileEmail.value.trim()
+      })
+      profileSaving.value = false
+      if (result.success) loadProfile()
+    }
+
+    const handlePasswordSubmit = async (e) => {
+      e.preventDefault()
+      if (!currentPassword.value || !newPassword.value || !newPasswordRepeat.value) {
+        actions.showToast('请填写完整', 'warning')
+        return
+      }
+      if (newPassword.value.length < 6) {
+        actions.showToast('新密码至少 6 位', 'warning')
+        return
+      }
+      if (newPassword.value !== newPasswordRepeat.value) {
+        actions.showToast('两次输入的新密码不一致', 'warning')
+        return
+      }
+      passwordSaving.value = true
+      const result = await actions.updatePassword({
+        current_password: currentPassword.value,
+        new_password: newPassword.value,
+        new_password_repeat: newPasswordRepeat.value
+      })
+      passwordSaving.value = false
+      if (result.success) {
+        currentPassword.value = ''
+        newPassword.value = ''
+        newPasswordRepeat.value = ''
+      }
+    }
+
+    const onAvatarChange = (e) => {
+      avatarFile.value = e.target.files?.[0]
+    }
+
+    const loadUsers = async () => {
+      if (!isAdmin.value) return
+      usersLoading.value = true
+      users.value = await actions.fetchUsers()
+      usersLoading.value = false
+    }
+
+    const handleAddUser = async (e) => {
+      e.preventDefault()
+      if (!newUserUsername.value.trim() || !newUserPassword.value) {
+        actions.showToast('请填写用户名和密码', 'warning')
+        return
+      }
+      if (newUserPassword.value.length < 6) {
+        actions.showToast('密码至少 6 位', 'warning')
+        return
+      }
+      const ok = await actions.addUser({
+        username: newUserUsername.value.trim().toLowerCase(),
+        email: newUserEmail.value.trim(),
+        password: newUserPassword.value,
+        is_admin: newUserIsAdmin.value
+      })
+      if (ok) {
+        newUserUsername.value = ''
+        newUserEmail.value = ''
+        newUserPassword.value = ''
+        newUserIsAdmin.value = false
+        loadUsers()
+      }
+    }
+
+    const toggleUserDisabled = async (user) => {
+      const ok = await actions.updateUser(user.username, { disabled: !user.disabled })
+      if (ok) loadUsers()
+    }
+
+    const toggleUserAdmin = async (user) => {
+      const ok = await actions.updateUser(user.username, { is_admin: !user.roles?.includes('admin') })
+      if (ok) loadUsers()
+    }
+
+    const handleDeleteUser = async (user) => {
+      if (!confirm(`确定要删除用户「${user.username}」吗？此操作不可恢复。`)) return
+      const ok = await actions.deleteUser(user.username)
+      if (ok) loadUsers()
+    }
+
+    const handleAvatarUpload = async () => {
+      if (!avatarFile.value) {
+        actions.showToast('请选择图片', 'warning')
+        return
+      }
+      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']
+      if (!allowed.includes(avatarFile.value.type)) {
+        actions.showToast('仅支持 PNG、JPG、GIF、WebP 格式', 'warning')
+        return
+      }
+      avatarUploading.value = true
+      const result = await actions.uploadAvatar(avatarFile.value)
+      avatarUploading.value = false
+      if (result.success) {
+        avatarFile.value = null
+        avatarInputKey.value++
+      }
+    }
+
     onMounted(() => {
+      loadProfile()
       loadToken()
       loadPwaConfig()
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
+      if (isAdmin.value) loadUsers()
     })
     watch(() => state.ledgers, () => {
       if (state.ledgers.length && !accountLedgerId.value) accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
@@ -161,11 +301,107 @@ export default {
       handleLedgerSubmit,
       handleAccountSubmit,
       deleteLedger,
-      deleteAccount
+      deleteAccount,
+      profileUsername,
+      profileNickname,
+      profileEmail,
+      profileSaving,
+      currentPassword,
+      newPassword,
+      newPasswordRepeat,
+      passwordSaving,
+      avatarFile,
+      avatarUploading,
+      loadProfile,
+      handleProfileSubmit,
+      handlePasswordSubmit,
+      onAvatarChange,
+      handleAvatarUpload,
+      avatarInputKey,
+      isAdmin,
+      users,
+      newUserUsername,
+      newUserEmail,
+      newUserPassword,
+      newUserIsAdmin,
+      usersLoading,
+      loadUsers,
+      handleAddUser,
+      toggleUserDisabled,
+      toggleUserAdmin,
+      handleDeleteUser
     }
   },
   template: `
     <div id="settings-view" class="view">
+      <div class="form-card">
+        <div class="card-header"><h3>👤 用户资料</h3></div>
+        <div class="card-body">
+          <form @submit="handleProfileSubmit">
+            <div class="profile-avatar-row">
+              <div class="avatar-preview">
+                <img v-if="state.user?.avatar" :src="state.user.avatar" alt="头像" class="avatar-img">
+                <span v-else class="avatar-placeholder material-icons">person</span>
+              </div>
+              <div class="avatar-upload">
+                <input :key="avatarInputKey" type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" @change="onAvatarChange">
+                <button type="button" class="btn btn-outline" :disabled="!avatarFile || avatarUploading" @click="handleAvatarUpload">
+                  {{ avatarUploading ? '上传中...' : '上传头像' }}
+                </button>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>用户名</label>
+                <input v-model="profileUsername" type="text" placeholder="登录用户名" required>
+              </div>
+              <div class="form-group">
+                <label>昵称</label>
+                <input v-model="profileNickname" type="text" placeholder="显示名称">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>邮箱</label>
+                <input v-model="profileEmail" type="email" placeholder="邮箱地址">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="profileSaving">
+                {{ profileSaving ? '保存中...' : '💾 保存资料' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="card-header"><h3>🔐 修改密码</h3></div>
+        <div class="card-body">
+          <form @submit="handlePasswordSubmit">
+            <div class="form-row">
+              <div class="form-group">
+                <label>当前密码</label>
+                <input v-model="currentPassword" type="password" placeholder="输入当前密码">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>新密码</label>
+                <input v-model="newPassword" type="password" placeholder="至少 6 位">
+              </div>
+              <div class="form-group">
+                <label>确认新密码</label>
+                <input v-model="newPasswordRepeat" type="password" placeholder="再次输入新密码">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="passwordSaving">
+                {{ passwordSaving ? '保存中...' : '🔑 修改密码' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
       <div class="form-card">
         <div class="card-header"><h3>📱 PWA 应用配置</h3></div>
         <div class="card-body">
@@ -337,6 +573,78 @@ export default {
               </div>
             </div>
             <p v-if="displayAccounts.length === 0" class="empty-message">暂无账户</p>
+          </div>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="form-card">
+        <div class="card-header"><h3>👥 用户管理</h3></div>
+        <div class="card-body">
+          <form @submit="handleAddUser" class="inline-form">
+            <div class="form-group">
+              <input v-model="newUserUsername" type="text" placeholder="登录名" required>
+            </div>
+            <div class="form-group">
+              <input v-model="newUserEmail" type="email" placeholder="邮箱">
+            </div>
+            <div class="form-group">
+              <input v-model="newUserPassword" type="password" placeholder="密码（至少6位）" required minlength="6">
+            </div>
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input v-model="newUserIsAdmin" type="checkbox">
+                <span>管理员</span>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <span class="material-icons">person_add</span>
+              添加用户
+            </button>
+          </form>
+          <div class="items-list" style="margin-top: 20px;">
+            <div v-for="user in users" :key="user.username" class="item-card">
+              <div class="item-info">
+                <span class="item-name">
+                  {{ user.username }}
+                  <span v-if="user.disabled" class="badge badge-danger">已停用</span>
+                  <span v-else-if="user.roles?.includes('admin')" class="badge badge-admin">管理员</span>
+                  <span v-else class="badge">普通用户</span>
+                </span>
+                <span class="item-desc">{{ user.email || '无邮箱' }} · {{ user.name || user.username }}</span>
+              </div>
+              <div class="item-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  :class="user.disabled ? 'btn-primary' : 'btn-outline'"
+                  :title="user.disabled ? '启用' : '停用'"
+                  :disabled="user.username === state.user?.username"
+                  @click="toggleUserDisabled(user)"
+                >
+                  {{ user.disabled ? '启用' : '停用' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  :class="user.roles?.includes('admin') ? 'btn-primary' : 'btn-outline'"
+                  :title="user.roles?.includes('admin') ? '取消管理员' : '设为管理员'"
+                  :disabled="user.username === state.user?.username"
+                  @click="toggleUserAdmin(user)"
+                >
+                  {{ user.roles?.includes('admin') ? '取消管理员' : '设为管理员' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline"
+                  :disabled="user.username === state.user?.username"
+                  title="删除"
+                  @click="handleDeleteUser(user)"
+                >
+                  <span class="material-icons">delete</span>
+                </button>
+              </div>
+            </div>
+            <p v-if="users.length === 0 && !usersLoading" class="empty-message">暂无用户</p>
+            <p v-if="usersLoading" class="empty-message">加载中...</p>
           </div>
         </div>
       </div>

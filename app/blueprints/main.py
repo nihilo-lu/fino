@@ -144,3 +144,22 @@ def serve_sw():
 def serve_static(filename):
     static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
     return send_from_directory(static_folder, filename)
+
+
+@main_bp.route("/api/avatars/<path:filename>")
+def serve_avatar(filename):
+    """提供用户头像静态文件"""
+    import os
+    uploads = current_app.config.get("UPLOADS_FOLDER")
+    if not uploads:
+        return jsonify({"error": "未配置"}), 404
+    avatars_dir = os.path.join(uploads, "avatars")
+    # 仅允许文件名，防止路径遍历
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "非法路径"}), 400
+    path = os.path.join(avatars_dir, filename)
+    real_path = os.path.realpath(path)
+    real_avatars = os.path.realpath(avatars_dir)
+    if not real_path.startswith(real_avatars + os.sep) or not os.path.isfile(real_path):
+        return jsonify({"error": "未找到"}), 404
+    return send_from_directory(avatars_dir, filename)

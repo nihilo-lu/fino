@@ -4,6 +4,7 @@ export default {
     navItems: Array,
     currentPage: String,
     userName: String,
+    userAvatar: String,
     collapsed: Boolean
   },
   emits: ['navigate', 'logout', 'switch-ledger'],
@@ -17,11 +18,11 @@ export default {
       </div>
       <div class="user-info">
         <div class="user-avatar">
-          <span class="material-icons">person</span>
+          <img v-if="userAvatar" :src="userAvatar" alt="头像" class="user-avatar-img">
+          <span v-else class="material-icons">person</span>
         </div>
         <div class="user-details">
           <span class="user-name">{{ userName }}</span>
-          <span class="user-role">普通用户</span>
         </div>
       </div>
       <ul class="nav-menu">

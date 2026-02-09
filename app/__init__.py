@@ -36,6 +36,7 @@ def create_app(config_path: str | None = None) -> Flask:
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_path = config_path or get_config_path()
     static_folder = os.path.join(base_dir, "frontend")
+    uploads_folder = os.path.join(base_dir, "uploads")
 
     app = Flask(
         __name__,
@@ -46,6 +47,7 @@ def create_app(config_path: str | None = None) -> Flask:
     # 1. 加载配置
     app.config["CONFIG_PATH"] = config_path
     app.config["STATIC_FOLDER"] = static_folder
+    app.config["UPLOADS_FOLDER"] = uploads_folder
     # Session 密钥（用于 Web 登录态）
     try:
         from utils.auth_config import load_config
@@ -62,7 +64,7 @@ def create_app(config_path: str | None = None) -> Flask:
 
     @app.before_request
     def require_auth():
-        if request.path in _EXEMPT_PATHS or not request.path.startswith("/api/"):
+        if request.path in _EXEMPT_PATHS or request.path.startswith("/api/avatars/") or not request.path.startswith("/api/"):
             return None
         # 1) API Token（Bearer）
         token = get_token_from_request()
