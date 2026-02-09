@@ -1,11 +1,12 @@
 import { ref, onMounted, watch } from 'vue'
 import { useStore } from '../store/index.js'
 import { formatCurrency } from '../utils/formatters.js'
+import AddTransactionModal from './AddTransactionModal.js'
 
 export default {
   name: 'TransactionsView',
-  emits: ['navigate'],
-  setup(props, { emit }) {
+  components: { AddTransactionModal },
+  setup() {
     const { state, actions } = useStore()
     const transactions = ref([])
     const total = ref(0)
@@ -37,6 +38,12 @@ export default {
     const totalPages = () => Math.ceil(total.value / perPage) || 1
     const goToPage = (p) => { page.value = p }
 
+    const showAddModal = ref(false)
+    const handleAddSubmitted = () => {
+      showAddModal.value = false
+      load()
+    }
+
     return {
       state,
       transactions,
@@ -50,7 +57,9 @@ export default {
       totalPages,
       goToPage,
       load,
-      showAdd: () => emit('navigate', 'add-transaction'),
+      showAddModal,
+      showAdd: () => { showAddModal.value = true },
+      handleAddSubmitted,
       deleteTransaction: (id) => actions.deleteTransaction(id, load)
     }
   },
@@ -130,6 +139,11 @@ export default {
           </div>
         </div>
       </div>
+      <AddTransactionModal
+        :show="showAddModal"
+        @close="showAddModal = false"
+        @submitted="handleAddSubmitted"
+      />
     </div>
   `
 }

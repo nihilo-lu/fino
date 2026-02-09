@@ -407,6 +407,43 @@ const actions = {
     return false
   },
 
+  async fetchDatabaseConfig() {
+    const response = await apiFetch(`${API_BASE}/database/config`)
+    const data = await parseJson(response)
+    return data?.data || data
+  },
+
+  async saveDatabaseConfig(cfg) {
+    const response = await apiFetch(`${API_BASE}/database/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('数据库配置已保存，请重启应用生效', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async testDatabaseConnection(cfg) {
+    const response = await apiFetch(`${API_BASE}/database/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      const res = data.data || data
+      showToast(res?.message || (res?.ok ? '连接成功' : '连接失败'), res?.ok ? 'success' : 'error')
+      return res
+    }
+    showToast(data?.error || '测试失败', 'error')
+    return { ok: false, message: data?.error }
+  },
+
   async resetToken() {
     if (!confirm('重置后旧 Token 将失效，确定继续？')) return ''
     const response = await apiFetch(`${API_BASE}/auth/token/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })

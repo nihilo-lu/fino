@@ -47,6 +47,16 @@ export default {
     const newUserIsAdmin = ref(false)
     const usersLoading = ref(false)
 
+    // 数据库配置（仅管理员）
+    const dbConfig = ref({
+      type: 'sqlite',
+      sqlite: { path: 'investment.db' },
+      postgresql: { host: 'localhost', port: 5432, database: 'investment', user: 'postgres', password: '', sslmode: 'prefer' },
+      d1: { account_id: '', database_id: '', api_token: '' }
+    })
+    const dbConfigSaving = ref(false)
+    const dbConfigTesting = ref(false)
+
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
       return settingsAccounts.value
@@ -67,6 +77,26 @@ export default {
     const loadPwaConfig = async () => {
       const cfg = await actions.fetchPwaConfig()
       if (cfg) pwaConfig.value = { ...pwaConfig.value, ...cfg }
+    }
+
+    const loadDatabaseConfig = async () => {
+      if (!isAdmin.value) return
+      const cfg = await actions.fetchDatabaseConfig()
+      if (cfg) dbConfig.value = { ...dbConfig.value, ...cfg }
+    }
+
+    const handleDatabaseSave = async (e) => {
+      e.preventDefault()
+      dbConfigSaving.value = true
+      const ok = await actions.saveDatabaseConfig(dbConfig.value)
+      dbConfigSaving.value = false
+      if (ok) loadDatabaseConfig()
+    }
+
+    const handleDatabaseTest = async () => {
+      dbConfigTesting.value = true
+      await actions.testDatabaseConnection(dbConfig.value)
+      dbConfigTesting.value = false
     }
 
     const handlePwaSave = async (e) => {
@@ -271,7 +301,10 @@ export default {
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
-      if (isAdmin.value) loadUsers()
+      if (isAdmin.value) {
+        loadUsers()
+        loadDatabaseConfig()
+      }
     })
     watch(() => state.ledgers, () => {
       if (state.ledgers.length && !accountLedgerId.value) accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
@@ -329,7 +362,13 @@ export default {
       handleAddUser,
       toggleUserDisabled,
       toggleUserAdmin,
-      handleDeleteUser
+      handleDeleteUser,
+      dbConfig,
+      dbConfigSaving,
+      dbConfigTesting,
+      loadDatabaseConfig,
+      handleDatabaseSave,
+      handleDatabaseTest
     }
   },
   template: `
@@ -646,6 +685,84 @@ export default {
             <p v-if="users.length === 0 && !usersLoading" class="empty-message">暂无用户</p>
             <p v-if="usersLoading" class="empty-message">加载中...</p>
           </div>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="form-card">
+        <div class="card-header"><h3>🗄️ 数据库设置</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">配置数据存储方式，支持 SQLite、PostgreSQL、Cloudflare D1。修改后需重启应用生效。</p>
+          <form @submit="handleDatabaseSave">
+            <div class="form-group">
+              <label>数据库类型</label>
+              <select v-model="dbConfig.type">
+                <option value="sqlite">🗃️ SQLite（本地文件）</option>
+                <option value="postgresql">🖥️ PostgreSQL（远程/本地）</option>
+                <option value="d1">☁️ Cloudflare D1（边缘数据库）</option>
+              </select>
+            </div>
+            <div v-if="dbConfig.type === 'sqlite'" class="form-group">
+              <label>数据库文件路径</label>
+              <input v-model="dbConfig.sqlite.path" type="text" placeholder="investment.db">
+            </div>
+            <template v-if="dbConfig.type === 'postgresql'">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>主机</label>
+                  <input v-model="dbConfig.postgresql.host" type="text" placeholder="localhost">
+                </div>
+                <div class="form-group">
+                  <label>端口</label>
+                  <input v-model.number="dbConfig.postgresql.port" type="number" placeholder="5432">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>数据库名</label>
+                  <input v-model="dbConfig.postgresql.database" type="text" placeholder="investment">
+                </div>
+                <div class="form-group">
+                  <label>用户名</label>
+                  <input v-model="dbConfig.postgresql.user" type="text" placeholder="postgres">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>密码</label>
+                  <input v-model="dbConfig.postgresql.password" type="password" placeholder="密码">
+                </div>
+                <div class="form-group">
+                  <label>SSL 模式</label>
+                  <select v-model="dbConfig.postgresql.sslmode">
+                    <option value="prefer">prefer</option>
+                    <option value="disable">disable</option>
+                    <option value="require">require</option>
+                  </select>
+                </div>
+              </div>
+            </template>
+            <template v-if="dbConfig.type === 'd1'">
+              <div class="form-group">
+                <label>Account ID</label>
+                <input v-model="dbConfig.d1.account_id" type="text" placeholder="Cloudflare 账户 ID">
+              </div>
+              <div class="form-group">
+                <label>Database ID</label>
+                <input v-model="dbConfig.d1.database_id" type="text" placeholder="D1 数据库 UUID">
+              </div>
+              <div class="form-group">
+                <label>API Token</label>
+                <input v-model="dbConfig.d1.api_token" type="password" placeholder="D1 读写权限的 API Token">
+              </div>
+            </template>
+            <div class="form-actions">
+              <button type="button" class="btn btn-outline" :disabled="dbConfigTesting" @click="handleDatabaseTest">
+                {{ dbConfigTesting ? '测试中...' : '🔌 测试连接' }}
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="dbConfigSaving">
+                {{ dbConfigSaving ? '保存中...' : '💾 保存配置' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

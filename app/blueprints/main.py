@@ -47,6 +47,119 @@ def get_pwa_config():
     return api_success(data=_get_pwa_config())
 
 
+@main_bp.route("/api/database/config", methods=["GET"])
+def get_database_config():
+    """获取数据库配置（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可查看", 403)
+    try:
+        from utils.db_config import get_database_config
+        db_cfg = get_database_config(current_app.config.get("CONFIG_PATH"))
+        # 不返回 api_token 全文，仅返回掩码
+        out = {
+            "type": db_cfg["type"],
+            "sqlite": db_cfg["sqlite"],
+            "postgresql": db_cfg["postgresql"],
+            "d1": {
+                "account_id": db_cfg["d1"]["account_id"],
+                "database_id": db_cfg["d1"]["database_id"],
+                "api_token": "***" if db_cfg["d1"]["api_token"] else "",
+            },
+        }
+        return api_success(data=out)
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
+@main_bp.route("/api/database/config", methods=["PUT"])
+def save_database_config():
+    """保存数据库配置（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可修改", 403)
+    try:
+        from utils.db_config import save_database_config as save_db_cfg, get_database_config as get_db_cfg
+        body = request.get_json() or {}
+        db_type = body.get("type", "sqlite")
+        d1_cfg = body.get("d1", {})
+        d1_token = d1_cfg.get("api_token", "")
+        if d1_token == "***" or (not d1_token and db_type == "d1"):
+            # 保留原有 token（前端返回掩码时）
+            current = get_db_cfg(current_app.config.get("CONFIG_PATH"))
+            d1_token = current.get("d1", {}).get("api_token", "")
+        saved = save_db_cfg(
+            db_type=db_type,
+            sqlite_path=body.get("sqlite", {}).get("path", "investment.db"),
+            pg_host=body.get("postgresql", {}).get("host", "localhost"),
+            pg_port=int(body.get("postgresql", {}).get("port", 5432)),
+            pg_database=body.get("postgresql", {}).get("database", "investment"),
+            pg_user=body.get("postgresql", {}).get("user", "postgres"),
+            pg_password=body.get("postgresql", {}).get("password", ""),
+            pg_sslmode=body.get("postgresql", {}).get("sslmode", "prefer"),
+            d1_account_id=d1_cfg.get("account_id", ""),
+            d1_database_id=d1_cfg.get("database_id", ""),
+            d1_api_token=d1_token,
+            config_path=current_app.config.get("CONFIG_PATH"),
+        )
+        if not saved:
+            return api_error("保存配置失败", 500)
+        return api_success(message="数据库配置已保存，请重启应用生效")
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
+@main_bp.route("/api/database/test", methods=["POST"])
+def test_database_connection():
+    """测试数据库连接（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可测试", 403)
+    try:
+        body = request.get_json() or {}
+        db_type = body.get("type", "sqlite")
+        if db_type == "postgresql":
+            from utils.db_config import test_postgresql_connection
+            pg = body.get("postgresql", {})
+            ok, msg = test_postgresql_connection(
+                host=pg.get("host", "localhost"),
+                port=int(pg.get("port", 5432)),
+                database=pg.get("database", "investment"),
+                user=pg.get("user", "postgres"),
+                password=pg.get("password", ""),
+                sslmode=pg.get("sslmode", "prefer"),
+            )
+        elif db_type == "d1":
+            from utils.db_config import test_d1_connection
+            d1 = body.get("d1", {})
+            ok, msg = test_d1_connection(
+                account_id=d1.get("account_id", ""),
+                database_id=d1.get("database_id", ""),
+                api_token=d1.get("api_token", ""),
+            )
+        else:
+            ok = True
+            msg = "SQLite 无需远程连接测试"
+        return api_success(data={"ok": ok, "message": msg})
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
 @main_bp.route("/api/pwa/config", methods=["PUT"])
 def save_pwa_config():
     """保存 PWA 配置（需登录）"""
@@ -80,7 +193,6 @@ def index():
 @main_bp.route("/positions")
 @main_bp.route("/transactions")
 @main_bp.route("/funds")
-@main_bp.route("/add-transaction")
 @main_bp.route("/analysis")
 @main_bp.route("/settings")
 @main_bp.route("/api-docs")

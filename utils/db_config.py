@@ -36,16 +36,10 @@ def get_database_config(config_path: Optional[str] = None) -> Dict[str, Any]:
 
     Returns:
         dict: {
-            "type": "sqlite" | "postgresql",
+            "type": "sqlite" | "postgresql" | "d1",
             "sqlite": {"path": "investment.db"},
-            "postgresql": {
-                "host": "localhost",
-                "port": 5432,
-                "database": "investment",
-                "user": "postgres",
-                "password": "",
-                "sslmode": "prefer"
-            }
+            "postgresql": {...},
+            "d1": {"account_id": "", "database_id": "", "api_token": ""}
         }
     """
     cfg = load_database_config(config_path)
@@ -62,7 +56,49 @@ def get_database_config(config_path: Optional[str] = None) -> Dict[str, Any]:
             "password": (cfg.get("postgresql") or {}).get("password") or "",
             "sslmode": (cfg.get("postgresql") or {}).get("sslmode") or "prefer",
         },
+        "d1": {
+            "account_id": (cfg.get("d1") or {}).get("account_id") or "",
+            "database_id": (cfg.get("d1") or {}).get("database_id") or "",
+            "api_token": (cfg.get("d1") or {}).get("api_token") or "",
+        },
     }
+
+
+def test_d1_connection(
+    account_id: str = "",
+    database_id: str = "",
+    api_token: str = "",
+) -> tuple[bool, str]:
+    """
+    测试 Cloudflare D1 数据库连接
+
+    Returns:
+        tuple[bool, str]: (是否成功, 消息)
+    """
+    if not account_id or not database_id or not api_token:
+        return False, "请填写 Account ID、Database ID 和 API Token"
+    try:
+        import urllib.request
+        import json
+        url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}/query"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"sql": "SELECT 1"}).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_token}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        if data.get("success"):
+            return True, "✅ 连接成功！"
+        errs = data.get("errors", [])
+        msg = errs[0].get("message", "未知错误") if errs else "连接失败"
+        return False, f"❌ 连接失败：{msg}"
+    except Exception as e:
+        return False, f"❌ 连接失败：{str(e)}"
 
 
 def test_postgresql_connection(
@@ -108,6 +144,9 @@ def save_database_config(
     pg_user: str = "postgres",
     pg_password: str = "",
     pg_sslmode: str = "prefer",
+    d1_account_id: str = "",
+    d1_database_id: str = "",
+    d1_api_token: str = "",
     config_path: Optional[str] = None,
 ) -> bool:
     """
@@ -132,6 +171,11 @@ def save_database_config(
                 "user": pg_user,
                 "password": pg_password,
                 "sslmode": pg_sslmode,
+            },
+            "d1": {
+                "account_id": d1_account_id,
+                "database_id": d1_database_id,
+                "api_token": d1_api_token,
             },
         }
         with open(path, "w", encoding="utf-8") as f:

@@ -2,8 +2,11 @@ import { ref, watch, computed } from 'vue'
 import { useStore } from '../store/index.js'
 
 export default {
-  name: 'AddTransactionView',
-  emits: ['submitted', 'navigate'],
+  name: 'AddTransactionModal',
+  props: {
+    show: Boolean
+  },
+  emits: ['close', 'submitted'],
   setup(props, { emit }) {
     const { state, actions } = useStore()
     const form = ref({
@@ -22,6 +25,7 @@ export default {
     })
     const categories = ref([])
     const loading = ref(false)
+    const modalAccounts = ref([])
 
     const amount = computed(() => {
       const p = parseFloat(form.value.price) || 0
@@ -30,18 +34,31 @@ export default {
     })
 
     watch(amount, (v) => { form.value.amount = v })
-    watch(() => state.currentLedgerId, (v) => { form.value.ledger_id = v || '' })
-    watch(() => state.ledgers, (v) => {
-      if (v.length && !form.value.ledger_id) form.value.ledger_id = state.currentLedgerId
-    }, { deep: true })
-    watch(() => state.accounts, (v) => {
-      if (v.length && !form.value.account_id) form.value.account_id = state.currentAccountId || state.accounts[0]?.id
-    }, { deep: true })
-
-    const loadCategories = async () => {
-      const data = await actions.fetchCategories()
-      categories.value = data?.categories || []
-    }
+    watch(() => props.show, async (v) => {
+      if (v) {
+        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id || ''
+        const accounts = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : state.accounts
+        modalAccounts.value = accounts
+        form.value.ledger_id = ledgerId
+        form.value.account_id = state.currentAccountId || accounts[0]?.id || ''
+        form.value.date = new Date().toISOString().split('T')[0]
+        form.value.type = ''
+        form.value.code = ''
+        form.value.name = ''
+        form.value.price = ''
+        form.value.quantity = ''
+        form.value.amount = ''
+        form.value.fee = 0
+        form.value.category = ''
+        form.value.notes = ''
+        const data = await actions.fetchCategories()
+        categories.value = data?.categories || []
+      }
+    })
+    watch(() => form.value.ledger_id, async (ledgerId) => {
+      modalAccounts.value = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : []
+      form.value.account_id = modalAccounts.value[0]?.id || ''
+    })
 
     const handleSubmit = async (e) => {
       e.preventDefault()
@@ -59,39 +76,34 @@ export default {
           notes: form.value.notes || ''
         })
         if (success) {
+          emit('close')
           emit('submitted')
-          emit('navigate', 'transactions')
         }
       } finally {
         loading.value = false
       }
     }
 
-    const initForm = () => {
-      form.value.ledger_id = state.currentLedgerId || ''
-      form.value.account_id = state.currentAccountId || state.accounts[0]?.id || ''
-      form.value.date = new Date().toISOString().split('T')[0]
-      loadCategories()
-    }
-
     return {
       state,
       form,
       categories,
+      modalAccounts,
       loading,
       amount,
-      handleSubmit,
-      initForm
+      handleSubmit
     }
   },
-  mounted() {
-    this.initForm()
-  },
   template: `
-    <div id="add-transaction-view" class="view">
-      <div class="form-card">
-        <div class="card-header"><h3>添加交易记录</h3></div>
-        <div class="card-body">
+    <div :class="['modal', { active: show }]">
+      <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+          <h3>添加交易记录</h3>
+          <button class="modal-close" @click="$emit('close')">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
           <form @submit="handleSubmit">
             <div class="form-row">
               <div class="form-group">
@@ -105,7 +117,7 @@ export default {
                 <label>账户 *</label>
                 <select v-model="form.account_id" required>
                   <option value="">选择账户</option>
-                  <option v-for="a in state.accounts" :key="a.id" :value="a.id">{{ a.name }} ({{ a.currency }})</option>
+                  <option v-for="a in modalAccounts" :key="a.id" :value="a.id">{{ a.name }} ({{ a.currency }})</option>
                 </select>
               </div>
             </div>
@@ -163,17 +175,14 @@ export default {
             </div>
             <div class="form-group">
               <label>备注</label>
-              <textarea v-model="form.notes" rows="3" placeholder="添加备注..."></textarea>
+              <textarea v-model="form.notes" rows="2" placeholder="添加备注..."></textarea>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" :disabled="loading">
                 <span class="material-icons">save</span>
                 保存
               </button>
-              <button type="reset" class="btn btn-outline">
-                <span class="material-icons">clear</span>
-                重置
-              </button>
+              <button type="button" class="btn btn-outline" @click="$emit('close')">取消</button>
             </div>
           </form>
         </div>

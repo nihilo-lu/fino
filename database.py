@@ -68,7 +68,7 @@ class Database:
         self.db_type = db_type or cfg["type"]
         self.db_path = db_path or cfg["sqlite"]["path"]
 
-        # 初始化基础设施层（根据配置选择 SQLite 或 PostgreSQL）
+        # 初始化基础设施层（根据配置选择 SQLite、PostgreSQL 或 D1）
         self.db_manager = get_db_manager(
             db_type=self.db_type,
             db_path=self.db_path,
@@ -78,6 +78,9 @@ class Database:
             pg_user=db_kwargs.get("pg_user") or cfg["postgresql"]["user"],
             pg_password=db_kwargs.get("pg_password") or cfg["postgresql"]["password"],
             pg_sslmode=db_kwargs.get("pg_sslmode") or cfg["postgresql"]["sslmode"],
+            d1_account_id=db_kwargs.get("d1_account_id") or cfg["d1"]["account_id"],
+            d1_database_id=db_kwargs.get("d1_database_id") or cfg["d1"]["database_id"],
+            d1_api_token=db_kwargs.get("d1_api_token") or cfg["d1"]["api_token"],
         )
         self.conn = self.db_manager.get_connection()
 

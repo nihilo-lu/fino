@@ -11,7 +11,6 @@ import DashboardView from './components/DashboardView.js'
 import PositionsView from './components/PositionsView.js'
 import TransactionsView from './components/TransactionsView.js'
 import FundsView from './components/FundsView.js'
-import AddTransactionView from './components/AddTransactionView.js'
 import AnalysisView from './components/AnalysisView.js'
 import SettingsView from './components/SettingsView.js'
 import ApiDocsView from './components/ApiDocsView.js'
@@ -23,7 +22,6 @@ const PAGE_TITLES = {
   positions: '持仓管理',
   transactions: '交易记录',
   funds: '资金明细',
-  'add-transaction': '添加交易',
   analysis: '收益分析',
   settings: '设置',
   'api-docs': 'API 文档'
@@ -34,7 +32,6 @@ const NAV_ITEMS = [
   { id: 'positions', label: '持仓管理', icon: 'account_balance' },
   { id: 'transactions', label: '交易记录', icon: 'receipt_long' },
   { id: 'funds', label: '资金明细', icon: 'payments' },
-  { id: 'add-transaction', label: '添加交易', icon: 'add_circle' },
   { id: 'analysis', label: '收益分析', icon: 'analytics' },
   { id: 'api-docs', label: 'API 文档', icon: 'code' },
   { id: 'settings', label: '设置', icon: 'settings' }
@@ -52,7 +49,6 @@ export default {
     PositionsView,
     TransactionsView,
     FundsView,
-    AddTransactionView,
     AnalysisView,
     SettingsView,
     ApiDocsView,
@@ -233,18 +229,12 @@ export default {
             <TransactionsView
               v-show="currentPage === 'transactions'"
               :class="['view', { active: currentPage === 'transactions' }]"
-              @navigate="navigateTo"
             />
             <FundsView
               v-show="currentPage === 'funds'"
               :class="['view', { active: currentPage === 'funds' }]"
               :refresh-trigger="fundsRefreshTrigger"
               @show-add-fund="handleShowFundModal"
-            />
-            <AddTransactionView
-              v-show="currentPage === 'add-transaction'"
-              :class="['view', { active: currentPage === 'add-transaction' }]"
-              @navigate="navigateTo"
             />
             <AnalysisView
               v-show="currentPage === 'analysis'"
