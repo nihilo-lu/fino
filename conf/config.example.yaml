@@ -1,3 +1,4 @@
+# 配置文件模板 - 复制为 config.yaml 后修改
 database:
   type: sqlite
   sqlite:
@@ -11,21 +12,10 @@ database:
     sslmode: prefer
 cookie:
   expiry_days: 30
-  key: investment_tracker_cookie_key_change_me
+  key: your_secret_key_change_me
   name: investment_tracker_auth
 credentials:
-  usernames:
-    nihilo:
-      email: 1871704893@qq.com
-      first_name: nihilo
-      last_name: ''
-      password: $2b$12$q19iMPoCICzyXiMPynLbDODTC6KHTFczJ663WTb7nuYbztURVUYNy
-      password_hint: nihilo_lu
-      roles:
-      - admin
-      failed_login_attempts: 0
-      logged_in: false
-      api_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im5paGlsbyIsImlhdCI6MTc3MDYzODg1Nn0.HdDktUb1WBg21sppk1j2BDbu6VxnQYndzAVueO74tqg
+  usernames: {}
 pre-authorized:
   emails: []
 pwa:

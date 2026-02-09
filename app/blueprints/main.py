@@ -75,6 +75,18 @@ def index():
     return _render_index(_get_pwa_config())
 
 
+# SPA 子页面路由：刷新时返回 index.html，由前端根据 URL 渲染对应页面
+@main_bp.route("/dashboard")
+@main_bp.route("/positions")
+@main_bp.route("/transactions")
+@main_bp.route("/funds")
+@main_bp.route("/add-transaction")
+@main_bp.route("/analysis")
+@main_bp.route("/settings")
+def spa_pages():
+    return _render_index(_get_pwa_config())
+
+
 def _render_index(pwa):
     """渲染带 PWA 配置的首页"""
     import os

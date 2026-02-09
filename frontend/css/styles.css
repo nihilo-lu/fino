@@ -80,8 +80,172 @@ body {
 }
 
 #login-page .login-card,
-#register-page .login-card {
+#register-page .login-card,
+.ledger-select-card {
     box-shadow: 0 14px 40px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.7) inset;
+}
+
+/* 账本选择页面 */
+.ledger-select-page {
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    background: radial-gradient(1200px 720px at 12% -12%, #fff8ec 0%, #f6f3ed 42%, #f1ede6 100%);
+    background-image: radial-gradient(1000px 620px at 85% 12%, rgba(251, 232, 196, 0.28), transparent 55%),
+                      radial-gradient(1200px 800px at 30% 90%, rgba(197, 212, 255, 0.2), transparent 58%),
+                      linear-gradient(135deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.06) 60%);
+    background-attachment: fixed;
+}
+
+.ledger-select-container {
+    width: 100%;
+    max-width: 480px;
+    padding: 20px;
+}
+
+.ledger-select-card {
+    position: relative;
+    background: rgba(255, 255, 255, 0.94);
+    border-radius: 14px;
+    padding: 40px 35px;
+    border: 1px solid rgba(0,0,0,0.04);
+    backdrop-filter: blur(8px);
+    animation: cardFloat 520ms ease, fadeUp 520ms ease;
+}
+
+.ledger-select-card .fino-logo {
+    margin-bottom: 20px;
+}
+
+.ledger-select-card .fino-logo .logo-text {
+    font-size: 42px;
+}
+
+.welcome-text {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.select-hint {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 24px;
+}
+
+.ledger-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.ledger-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.ledger-card:hover {
+    background: rgba(251, 246, 236, 0.95);
+    border-color: rgba(244, 163, 34, 0.35);
+    box-shadow: var(--shadow-sm);
+}
+
+.ledger-icon {
+    font-size: 28px;
+    color: var(--secondary-color);
+}
+
+.ledger-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ledger-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ledger-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.arrow-icon {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.ledger-card:hover .arrow-icon {
+    color: var(--primary-color);
+}
+
+.empty-ledgers {
+    text-align: center;
+    padding: 32px 20px;
+    margin-bottom: 24px;
+    background: rgba(0,0,0,0.02);
+    border-radius: 12px;
+}
+
+.empty-icon {
+    font-size: 48px;
+    color: var(--border-color);
+    margin-bottom: 12px;
+}
+
+.empty-ledgers p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 0;
+}
+
+.empty-hint {
+    font-size: 12px !important;
+    margin-top: 6px !important;
+    color: #999 !important;
+}
+
+.create-ledger-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.create-ledger-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.ledger-select-footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.ledger-select-footer .btn-link {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.ledger-select-footer .btn-link:hover {
+    color: var(--text-primary);
 }
 
 .login-card::before {
@@ -278,6 +442,17 @@ body {
 
 .btn-outline:hover {
     background: var(--background-color);
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.btn-outline-secondary:hover {
+    background: rgba(0,0,0,0.03);
+    color: var(--text-primary);
 }
 
 .btn-danger {

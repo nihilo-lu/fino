@@ -6,7 +6,7 @@ export default {
     userName: String,
     collapsed: Boolean
   },
-  emits: ['navigate', 'logout'],
+  emits: ['navigate', 'logout', 'switch-ledger'],
   template: `
     <nav :class="['sidebar', { collapsed }]" id="sidebar">
       <div class="sidebar-header">
@@ -36,6 +36,10 @@ export default {
         </li>
       </ul>
       <div class="sidebar-footer">
+        <button class="btn btn-outline btn-outline-secondary" @click="$emit('switch-ledger')">
+          <span class="material-icons">swap_horiz</span>
+          切换账本
+        </button>
         <button class="btn btn-outline" @click="$emit('logout')">
           <span class="material-icons">logout</span>
           退出登录

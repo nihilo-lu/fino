@@ -103,6 +103,7 @@ const actions = {
     state.currentLedgerId = null
     state.currentAccountId = null
     localStorage.removeItem('user_data')
+    localStorage.removeItem('last_ledger_id')
   },
 
   async fetchLedgers() {
@@ -116,10 +117,19 @@ const actions = {
     const data = await parseJson(response)
     if (data?.ledgers) {
       state.ledgers = data.ledgers
-      if (state.ledgers.length > 0 && !state.currentLedgerId) {
-        state.currentLedgerId = state.ledgers[0].id
-      }
     }
+  },
+
+  tryRestoreLastLedger() {
+    const lastId = localStorage.getItem('last_ledger_id')
+    if (!lastId || !state.ledgers.length) return false
+    const id = parseInt(lastId, 10)
+    const exists = state.ledgers.some((l) => l.id === id)
+    if (exists) {
+      state.currentLedgerId = id
+      return true
+    }
+    return false
   },
 
   async fetchAccounts() {
@@ -140,13 +150,21 @@ const actions = {
   },
 
   setCurrentLedger(ledgerId) {
-    state.currentLedgerId = ledgerId ? parseInt(ledgerId) : null
+    const id = ledgerId ? parseInt(ledgerId) : null
+    state.currentLedgerId = id
     state.currentAccountId = null
+    if (id) localStorage.setItem('last_ledger_id', String(id))
     this.fetchAccounts()
   },
 
   setCurrentAccount(accountId) {
     state.currentAccountId = accountId ? parseInt(accountId) : null
+  },
+
+  clearCurrentLedger() {
+    state.currentLedgerId = null
+    state.currentAccountId = null
+    state.accounts = []
   },
 
   async fetchPortfolioStats() {

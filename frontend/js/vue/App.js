@@ -1,8 +1,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from './store/index.js'
+import { getPageFromPath, pushState, replaceState, initRouter } from './utils/router.js'
 
 import LoginPage from './components/LoginPage.js'
 import RegisterPage from './components/RegisterPage.js'
+import LedgerSelectPage from './components/LedgerSelectPage.js'
 import Sidebar from './components/Sidebar.js'
 import Header from './components/Header.js'
 import DashboardView from './components/DashboardView.js'
@@ -40,6 +42,7 @@ export default {
   components: {
     LoginPage,
     RegisterPage,
+    LedgerSelectPage,
     Sidebar,
     Header,
     DashboardView,
@@ -62,7 +65,6 @@ export default {
     const loginError = ref('')
     const registerError = ref('')
     const registerSuccess = ref('')
-
     const pageTitle = computed(() => PAGE_TITLES[currentPage.value] || '仪表盘')
     const userName = computed(() => state.user?.name || state.user?.username || '用户名')
 
@@ -71,14 +73,21 @@ export default {
       const result = await actions.login(username, password)
       if (result.success) {
         await actions.fetchLedgers()
-        await actions.fetchAccounts()
-        if (state.ledgers.length > 0) {
-          state.currentLedgerId = state.ledgers[0].id
-          await actions.fetchAccounts()
-        }
       } else {
         loginError.value = result.error || '登录失败'
       }
+    }
+
+    const handleLedgerSelect = async (ledgerId) => {
+      actions.setCurrentLedger(ledgerId)
+      await actions.fetchAccounts()
+      currentPage.value = getPageFromPath()
+      replaceState(currentPage.value)
+    }
+
+    const handleCreateLedger = async ({ name, description }) => {
+      const ok = await actions.createLedger(name, description)
+      if (ok) await actions.fetchLedgers()
     }
 
     const handleRegister = async (formData) => {
@@ -101,8 +110,13 @@ export default {
       showRegister.value = false
     }
 
+    const handleSwitchLedger = () => {
+      actions.clearCurrentLedger()
+    }
+
     const navigateTo = (pageId) => {
       currentPage.value = pageId
+      pushState(pageId)
     }
 
     const handleLedgerChange = (ledgerId) => {
@@ -127,13 +141,19 @@ export default {
     }
 
     onMounted(async () => {
+      initRouter((pageId) => {
+        currentPage.value = pageId
+      })
       const isAuth = await actions.checkAuth()
       if (isAuth) {
         await actions.fetchLedgers()
-        if (state.ledgers.length > 0 && !state.currentLedgerId) {
-          state.currentLedgerId = state.ledgers[0].id
+        const restored = actions.tryRestoreLastLedger()
+        if (restored) {
           await actions.fetchAccounts()
         }
+      }
+      if (state.isAuthenticated && state.currentLedgerId) {
+        currentPage.value = getPageFromPath()
       }
     })
 
@@ -149,6 +169,9 @@ export default {
       handleLogin,
       handleRegister,
       handleLogout,
+      handleLedgerSelect,
+      handleCreateLedger,
+      handleSwitchLedger,
       navigateTo,
       handleLedgerChange,
       handleAccountChange,
@@ -178,6 +201,15 @@ export default {
         />
       </div>
 
+      <LedgerSelectPage
+        v-else-if="!state.currentLedgerId"
+        :ledgers="state.ledgers"
+        :user-name="userName"
+        @select-ledger="handleLedgerSelect"
+        @create-ledger="handleCreateLedger"
+        @logout="handleLogout"
+      />
+
       <div v-else id="main-page" class="page active">
         <Sidebar
           :nav-items="NAV_ITEMS"
@@ -186,6 +218,7 @@ export default {
           :collapsed="sidebarCollapsed"
           @navigate="navigateTo"
           @logout="handleLogout"
+          @switch-ledger="handleSwitchLedger"
         />
         <main class="main-content">
           <Header
