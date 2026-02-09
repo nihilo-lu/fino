@@ -1,0 +1,29 @@
+database:
+  type: sqlite
+  sqlite:
+    path: investment.db
+  postgresql:
+    host: localhost
+    port: 5432
+    database: investment
+    user: postgres
+    password: ''
+    sslmode: prefer
+cookie:
+  expiry_days: 30
+  key: investment_tracker_cookie_key_change_me
+  name: investment_tracker_auth
+credentials:
+  usernames:
+    nihilo:
+      email: 1871704893@qq.com
+      first_name: nihilo
+      last_name: ''
+      password: $2b$12$q19iMPoCICzyXiMPynLbDODTC6KHTFczJ663WTb7nuYbztURVUYNy
+      password_hint: nihilo_lu
+      roles:
+      - admin
+      failed_login_attempts: 0
+      logged_in: false
+pre-authorized:
+  emails: []
