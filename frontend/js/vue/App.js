@@ -77,7 +77,9 @@ export default {
     const userName = computed(() => state.user?.name || state.user?.username || '用户名')
     const navItems = computed(() => {
       const items = [...NAV_ITEMS_BASE]
-      if (state.cloudreveEnabled && state.enabledPlugins?.includes('fino-cloudreve')) {
+      // 插件中心关闭时所有插件禁用；开启时由 enabledPlugins 控制
+      const showCloudreve = state.pluginCenterEnabled && state.cloudreveEnabled && state.enabledPlugins?.includes('fino-cloudreve')
+      if (showCloudreve) {
         const cloudIdx = items.findIndex((i) => i.id === 'analysis')
         items.splice(cloudIdx + 1, 0, { id: 'cloud-storage', label: '网盘', icon: 'cloud' })
       }
@@ -90,10 +92,10 @@ export default {
       if (result.success) {
         await actions.fetchLedgers()
         try {
+          await actions.fetchPluginCenterSetting()
           await actions.fetchCloudreveConfig()
           await actions.fetchCloudreveStatus()
-          await actions.fetchInstalledPlugins()
-          await actions.fetchPluginCenterSetting()
+          if (state.pluginCenterEnabled) await actions.fetchInstalledPlugins()
         } catch (e) {
           console.warn('Post-login fetch failed:', e)
         }
@@ -168,10 +170,10 @@ export default {
           await actions.fetchAccounts()
         }
         try {
+          await actions.fetchPluginCenterSetting()
           await actions.fetchCloudreveConfig()
           await actions.fetchCloudreveStatus()
-          await actions.fetchInstalledPlugins()
-          await actions.fetchPluginCenterSetting()
+          if (state.pluginCenterEnabled) await actions.fetchInstalledPlugins()
         } catch (e) {
           console.warn('Auth fetch failed:', e)
         }
@@ -297,7 +299,7 @@ export default {
         @close="showFundModal = false"
         @submitted="handleFundSubmitted"
       />
-      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />
+      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />
       <AiChatWindow
         :show="showAiChat"
         @close="showAiChat = false"

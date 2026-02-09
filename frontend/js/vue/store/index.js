@@ -696,7 +696,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       state.pluginCenterEnabled = !!data.enabled
-      showToast('已保存', 'success')
+      showToast('已保存，请重启应用生效', 'success')
       return true
     }
     showToast(data?.error || '保存失败', 'error')
