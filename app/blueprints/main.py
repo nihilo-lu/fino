@@ -183,6 +183,46 @@ def save_pwa_config():
         return api_error(str(e), 500)
 
 
+@main_bp.route("/api/settings/plugin-center", methods=["GET"])
+def get_plugin_center_setting():
+    """获取插件中心是否开启（需登录）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
+        lab = cfg.get("lab") or {}
+        enabled = lab.get("plugin_center_enabled", True)
+        return api_success(data={"enabled": bool(enabled)})
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
+@main_bp.route("/api/settings/plugin-center", methods=["PUT"])
+def save_plugin_center_setting():
+    """保存插件中心开关（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, save_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可修改", 403)
+    try:
+        cfg = cfg or {}
+        if "lab" not in cfg:
+            cfg["lab"] = {}
+        body = request.get_json() or {}
+        cfg["lab"]["plugin_center_enabled"] = bool(body.get("enabled", True))
+        if not save_config(current_app.config.get("CONFIG_PATH"), cfg):
+            return api_error("保存配置失败", 500)
+        return api_success(data={"enabled": cfg["lab"]["plugin_center_enabled"]}, message="已保存")
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
 @main_bp.route("/")
 def index():
     return _render_index(_get_pwa_config())

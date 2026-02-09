@@ -12,7 +12,9 @@ const state = reactive({
   currentAccountId: null,
   toast: null,
   cloudreveEnabled: false,
-  cloudreveBound: false
+  cloudreveBound: false,
+  enabledPlugins: [],  // 已启用的插件 id 列表，用于控制 AI 按钮、网盘入口等
+  pluginCenterEnabled: true  // 是否在设置中显示插件中心
 })
 
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
@@ -106,6 +108,9 @@ const actions = {
     state.accounts = []
     state.currentLedgerId = null
     state.currentAccountId = null
+    state.enabledPlugins = []
+    state.cloudreveEnabled = false
+    state.cloudreveBound = false
     localStorage.removeItem('user_data')
     localStorage.removeItem('last_ledger_id')
   },
@@ -607,6 +612,108 @@ const actions = {
       return true
     }
     showToast(data?.error || '创建失败', 'error')
+    return false
+  },
+
+  async fetchPluginRegistry() {
+    const response = await apiFetch(`${API_BASE}/plugins/registry`)
+    const data = await parseJson(response)
+    if (response.ok && data?.success) return data.data?.plugins ?? []
+    return []
+  },
+
+  async fetchInstalledPlugins() {
+    const response = await apiFetch(`${API_BASE}/plugins/installed`)
+    if (response.unauthorized) return { installed: [], enabled: [] }
+    const data = await parseJson(response)
+    if (!data) return { installed: [], enabled: [] }
+    const payload = (data.installed !== undefined || data.enabled !== undefined) ? data : { installed: [], enabled: [] }
+    const result = {
+      installed: payload.installed ?? [],
+      enabled: payload.enabled ?? []
+    }
+    state.enabledPlugins = result.enabled
+    return result
+  },
+
+  async enablePlugin(pluginId) {
+    const response = await apiFetch(`${API_BASE}/plugins/installed/${encodeURIComponent(pluginId)}/enable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('插件已启用，请刷新页面生效', 'success')
+      return true
+    }
+    showToast(data?.error || '启用失败', 'error')
+    return false
+  },
+
+  async disablePlugin(pluginId) {
+    const response = await apiFetch(`${API_BASE}/plugins/installed/${encodeURIComponent(pluginId)}/disable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('插件已禁用', 'success')
+      return true
+    }
+    showToast(data?.error || '禁用失败', 'error')
+    return false
+  },
+
+  async uninstallPlugin(pluginId) {
+    const response = await apiFetch(`${API_BASE}/plugins/installed/${encodeURIComponent(pluginId)}/uninstall`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('插件已卸载，请重启应用生效', 'success')
+      return true
+    }
+    showToast(data?.error || '卸载失败', 'error')
+    return false
+  },
+
+  async fetchPluginCenterSetting() {
+    const response = await apiFetch(`${API_BASE}/settings/plugin-center`)
+    if (response.unauthorized) return { enabled: true }
+    const data = await parseJson(response)
+    const payload = data?.data ?? data ?? {}
+    state.pluginCenterEnabled = payload.enabled !== false
+    return { enabled: state.pluginCenterEnabled }
+  },
+
+  async savePluginCenterSetting(enabled) {
+    const response = await apiFetch(`${API_BASE}/settings/plugin-center`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      state.pluginCenterEnabled = !!data.enabled
+      showToast('已保存', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async installPlugin(pluginId) {
+    const response = await apiFetch(`${API_BASE}/plugins/install/${encodeURIComponent(pluginId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('插件已安装，请重启应用生效', 'success')
+      return true
+    }
+    showToast(data?.error || '安装失败', 'error')
     return false
   },
 

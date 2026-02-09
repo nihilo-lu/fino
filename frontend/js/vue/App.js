@@ -77,7 +77,7 @@ export default {
     const userName = computed(() => state.user?.name || state.user?.username || '用户名')
     const navItems = computed(() => {
       const items = [...NAV_ITEMS_BASE]
-      if (state.cloudreveEnabled) {
+      if (state.cloudreveEnabled && state.enabledPlugins?.includes('fino-cloudreve')) {
         const cloudIdx = items.findIndex((i) => i.id === 'analysis')
         items.splice(cloudIdx + 1, 0, { id: 'cloud-storage', label: '网盘', icon: 'cloud' })
       }
@@ -89,6 +89,14 @@ export default {
       const result = await actions.login(username, password)
       if (result.success) {
         await actions.fetchLedgers()
+        try {
+          await actions.fetchCloudreveConfig()
+          await actions.fetchCloudreveStatus()
+          await actions.fetchInstalledPlugins()
+          await actions.fetchPluginCenterSetting()
+        } catch (e) {
+          console.warn('Post-login fetch failed:', e)
+        }
       } else {
         loginError.value = result.error || '登录失败'
       }
@@ -159,8 +167,14 @@ export default {
         if (restored) {
           await actions.fetchAccounts()
         }
-        await actions.fetchCloudreveConfig()
-        await actions.fetchCloudreveStatus()
+        try {
+          await actions.fetchCloudreveConfig()
+          await actions.fetchCloudreveStatus()
+          await actions.fetchInstalledPlugins()
+          await actions.fetchPluginCenterSetting()
+        } catch (e) {
+          console.warn('Auth fetch failed:', e)
+        }
       }
       if (state.isAuthenticated && state.currentLedgerId) {
         currentPage.value = getPageFromPath()
@@ -283,7 +297,7 @@ export default {
         @close="showFundModal = false"
         @submitted="handleFundSubmitted"
       />
-      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId" @click="showAiChat = true" />
+      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />
       <AiChatWindow
         :show="showAiChat"
         @close="showAiChat = false"

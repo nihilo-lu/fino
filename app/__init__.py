@@ -1,6 +1,6 @@
 """
 应用工厂 - 工厂模式创建 Flask 应用
-支持多环境配置、蓝图注册、扩展初始化
+支持多环境配置、蓝图注册、扩展初始化、插件系统
 """
 
 import os
@@ -21,8 +21,9 @@ from app.blueprints.fund_transactions import fund_transactions_bp
 from app.blueprints.reference import reference_bp
 from app.blueprints.market import market_bp
 from app.blueprints.analysis import analysis_bp
-from app.blueprints.ai_chat import ai_bp
-from app.blueprints.cloudreve import cloudreve_bp
+from app.blueprints.plugins_bp import plugins_bp
+from app.plugins.manager import PluginManager
+from app.plugins.registry import PluginRegistry
 
 
 def create_app(config_path: str | None = None) -> Flask:
@@ -62,11 +63,16 @@ def create_app(config_path: str | None = None) -> Flask:
     CORS(app, supports_credentials=True)
 
     # 3. 认证：支持 (1) Session 登录 (2) API Token (Bearer)
-    _EXEMPT_PATHS = ["/api/auth/login", "/api/auth/register", "/api/health"]
+    _EXEMPT_PATHS = [
+        "/api/auth/login", "/api/auth/register", "/api/health",
+        "/api/plugins/registry", "/api/plugins/frontend-manifest",  # 插件中心与前端清单可匿名读取
+    ]
 
     @app.before_request
     def require_auth():
-        if request.path in _EXEMPT_PATHS or request.path.startswith("/api/avatars/") or not request.path.startswith("/api/"):
+        exempt = request.path in _EXEMPT_PATHS or request.path.startswith("/api/avatars/")
+        exempt = exempt or request.path.startswith("/api/plugins/registry") or request.path == "/api/plugins/frontend-manifest" or request.path == "/api/plugins/installed"
+        if exempt or not request.path.startswith("/api/"):
             return None
         # 1) API Token（Bearer）
         token = get_token_from_request()
@@ -91,10 +97,39 @@ def create_app(config_path: str | None = None) -> Flask:
     app.register_blueprint(reference_bp)
     app.register_blueprint(market_bp)
     app.register_blueprint(analysis_bp)
-    app.register_blueprint(ai_bp)
-    app.register_blueprint(cloudreve_bp)
+    app.register_blueprint(plugins_bp)
 
-    # 5. 配置日志
+    # 5. 插件系统（AI、网盘等由插件注册）
+    app.plugin_manager = PluginManager(app)
+    app.plugin_registry = PluginRegistry()
+    try:
+        app.plugin_manager.load_and_register_all()
+    except Exception as e:
+        logging.warning("插件加载失败，将回退到直接注册 AI 与网盘: %s", e)
+        from app.blueprints.ai_chat import ai_bp
+        from app.blueprints.cloudreve import cloudreve_bp
+        app.register_blueprint(ai_bp)
+        app.register_blueprint(cloudreve_bp)
+
+    # 5.1 插件禁用检查：禁用后即时生效，请求对应路由返回 404
+    _PLUGIN_ROUTES = {
+        "/api/ai": "fino-ai-chat",
+        "/api/cloudreve": "fino-cloudreve",
+    }
+
+    @app.before_request
+    def check_plugin_enabled():
+        if not request.path.startswith("/api/"):
+            return None
+        for prefix, plugin_id in _PLUGIN_ROUTES.items():
+            if request.path.startswith(prefix):
+                enabled = app.plugin_manager._load_enabled_list()
+                if plugin_id not in enabled:
+                    return api_error("插件已禁用", 404)
+                break
+        return None
+
+    # 6. 配置日志
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",

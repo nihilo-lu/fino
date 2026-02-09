@@ -1,8 +1,10 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useStore } from '../store/index.js'
+import PluginConfigModal from './PluginConfigModal.js'
 
 export default {
   name: 'SettingsView',
+  components: { PluginConfigModal },
   emits: ['navigate'],
   setup(props, { emit }) {
     const { state, actions, isAdmin } = useStore()
@@ -58,38 +60,27 @@ export default {
     const dbConfigSaving = ref(false)
     const dbConfigTesting = ref(false)
 
-    // AI 配置（仅管理员）
-    const aiConfig = ref({
-      base_url: 'https://api.openai.com/v1',
-      api_key: '',
-      model: 'gpt-4o-mini',
-      show_thinking: true,
-      context_messages: 20
-    })
-    const aiConfigSaving = ref(false)
-
-    // 网盘存储（Cloudreve）
-    const cloudreveConfig = ref({ enabled: false })
-    const cloudreveStatus = ref({ bound: false })
-    const cloudreveServerUrl = ref('')
-    const cloudreveVerifyResult = ref(null)
-    const cloudreveBindEmail = ref('')
-    const cloudreveBindPassword = ref('')
-    const cloudreveCaptcha = ref(null)
-    const cloudreveCaptchaTicket = ref('')
-    const cloudreveCaptchaInput = ref('')
-    const cloudreveBinding = ref(false)
-    const cloudreveVerifying = ref(false)
-    const cloudreveConfigSaving = ref(false)
+    // 插件中心
+    const pluginRegistry = ref([])
+    const installedPlugins = ref({ installed: [], enabled: [] })
+    const pluginsLoading = ref(false)
+    const pluginToggling = ref(null)
+    const showPluginConfigModal = ref(false)
+    const pluginConfigTarget = ref(null)
 
     const activeTab = ref('profile')
 
-    const tabs = computed(() => [
-      { id: 'profile', label: '个人', icon: 'person' },
-      { id: 'data', label: '数据', icon: 'folder' },
-      { id: 'system', label: '系统', icon: 'settings' },
-      { id: 'lab', label: '实验室', icon: 'science', badge: 'Beta' }
-    ])
+    const tabs = computed(() => {
+      const base = [
+        { id: 'profile', label: '个人', icon: 'person' },
+        { id: 'data', label: '数据', icon: 'folder' },
+        { id: 'system', label: '系统', icon: 'settings' }
+      ]
+      if (state.pluginCenterEnabled) {
+        base.push({ id: 'plugins', label: '插件中心', icon: 'extension' })
+      }
+      return base
+    })
 
     const switchTab = (id) => {
       activeTab.value = id
@@ -123,112 +114,75 @@ export default {
       if (cfg) dbConfig.value = { ...dbConfig.value, ...cfg }
     }
 
-    const loadAiConfig = async () => {
-      if (!isAdmin.value) return
-      const cfg = await actions.fetchAiConfig()
-      if (cfg) aiConfig.value = { ...aiConfig.value, ...cfg }
+    const loadPluginRegistry = async () => {
+      pluginRegistry.value = await actions.fetchPluginRegistry()
     }
 
-    const loadCloudreveConfig = async () => {
-      const cfg = await actions.fetchCloudreveConfig()
-      if (cfg) cloudreveConfig.value = cfg
+    const loadInstalledPlugins = async () => {
+      installedPlugins.value = await actions.fetchInstalledPlugins()
     }
 
-    const loadCloudreveStatus = async () => {
-      const st = await actions.fetchCloudreveStatus()
-      if (st) cloudreveStatus.value = st
+    const loadPlugins = async () => {
+      pluginsLoading.value = true
+      await Promise.all([loadPluginRegistry(), loadInstalledPlugins()])
+      pluginsLoading.value = false
     }
 
-    const handleCloudreveConfigSave = async (e) => {
+    const handlePluginEnable = async (pluginId) => {
+      pluginToggling.value = pluginId
+      const ok = await actions.enablePlugin(pluginId)
+      pluginToggling.value = null
+      if (ok) loadInstalledPlugins()
+    }
+
+    const handlePluginDisable = async (pluginId) => {
+      pluginToggling.value = pluginId
+      const ok = await actions.disablePlugin(pluginId)
+      pluginToggling.value = null
+      if (ok) loadInstalledPlugins()
+    }
+
+    const handlePluginUninstall = async (pluginId) => {
+      if (!confirm(`确定要卸载「${installedPlugins.value.installed?.find(p => p.id === pluginId)?.name || pluginId}」吗？卸载后需重启应用，可通过「可安装」列表重新安装。`)) return
+      pluginToggling.value = pluginId
+      const ok = await actions.uninstallPlugin(pluginId)
+      pluginToggling.value = null
+      if (ok) loadPlugins()
+    }
+
+    const handlePluginInstall = async (pluginId) => {
+      pluginToggling.value = pluginId
+      const ok = await actions.installPlugin(pluginId)
+      pluginToggling.value = null
+      if (ok) loadPlugins()
+    }
+
+    const handlePluginConfig = (plugin) => {
+      pluginConfigTarget.value = plugin
+      showPluginConfigModal.value = true
+    }
+
+    const pluginCenterSaving = ref(false)
+    const pluginCenterEnabled = ref(true)
+
+    const loadPluginCenterSetting = async () => {
+      await actions.fetchPluginCenterSetting()
+      pluginCenterEnabled.value = state.pluginCenterEnabled
+    }
+
+    const handlePluginCenterSave = async (e) => {
       e.preventDefault()
-      if (!isAdmin.value) return
-      cloudreveConfigSaving.value = true
-      const ok = await actions.saveCloudreveConfig(cloudreveConfig.value)
-      cloudreveConfigSaving.value = false
-      if (ok) loadCloudreveConfig()
+      pluginCenterSaving.value = true
+      const ok = await actions.savePluginCenterSetting(pluginCenterEnabled.value)
+      pluginCenterSaving.value = false
+      if (ok) loadPluginCenterSetting()
     }
 
-    const handleCloudreveVerify = async () => {
-      if (!cloudreveServerUrl.value.trim()) {
-        actions.showToast('请输入服务器地址', 'warning')
-        return
-      }
-      cloudreveVerifying.value = true
-      cloudreveVerifyResult.value = null
-      try {
-        const result = await actions.verifyCloudreveServer(cloudreveServerUrl.value.trim())
-        cloudreveVerifyResult.value = result
-        if (result?.valid) {
-          actions.showToast('验证成功', 'success')
-        } else {
-          actions.showToast(result?.error || '无法连接该服务器', 'error')
-        }
-      } catch (e) {
-        console.error('Cloudreve 验证失败:', e)
-        actions.showToast('验证失败，请检查网络或服务器地址', 'error')
-      } finally {
-        cloudreveVerifying.value = false
-      }
-    }
-
-    const handleCloudreveOpenLogin = () => {
-      if (cloudreveVerifyResult.value?.login_url) {
-        window.open(cloudreveVerifyResult.value.login_url, '_blank')
-      }
-    }
-
-    const handleCloudreveFetchCaptcha = async () => {
-      if (!cloudreveServerUrl.value.trim()) {
-        actions.showToast('请先验证服务器', 'warning')
-        return
-      }
-      const cap = await actions.fetchCloudreveCaptcha(cloudreveServerUrl.value.trim())
-      if (cap) {
-        cloudreveCaptcha.value = cap
-        cloudreveCaptchaTicket.value = cap.ticket || ''
-        cloudreveCaptchaInput.value = ''
-      }
-    }
-
-    const handleCloudreveBind = async (e) => {
-      e.preventDefault()
-      if (!cloudreveServerUrl.value.trim() || !cloudreveBindEmail.value.trim() || !cloudreveBindPassword.value) {
-        actions.showToast('请填写完整', 'warning')
-        return
-      }
-      cloudreveBinding.value = true
-      const ok = await actions.bindCloudreve({
-        url: cloudreveServerUrl.value.trim(),
-        email: cloudreveBindEmail.value.trim(),
-        password: cloudreveBindPassword.value,
-        captcha: cloudreveCaptchaInput.value.trim(),
-        ticket: cloudreveCaptchaTicket.value || ''
-      })
-      cloudreveBinding.value = false
-      if (ok) {
-        cloudreveBindEmail.value = ''
-        cloudreveBindPassword.value = ''
-        cloudreveCaptchaInput.value = ''
-        cloudreveCaptcha.value = null
-        loadCloudreveStatus()
-        emit('navigate', 'cloud-storage')
-      }
-    }
-
-    const handleCloudreveUnbind = async () => {
-      if (!confirm('确定要解绑 Cloudreve 吗？')) return
-      const ok = await actions.unbindCloudreve()
-      if (ok) loadCloudreveStatus()
-    }
-
-    const handleAiConfigSave = async (e) => {
-      e.preventDefault()
-      if (!isAdmin.value) return
-      aiConfigSaving.value = true
-      const ok = await actions.saveAiConfig(aiConfig.value)
-      aiConfigSaving.value = false
-      if (ok) loadAiConfig()
-    }
+    const isPluginEnabled = (pluginId) => installedPlugins.value.enabled?.includes(pluginId) ?? false
+    const isPluginInstalled = (pluginId) => installedPlugins.value.installed?.some(p => p.id === pluginId) ?? false
+    const availableToInstall = computed(() =>
+      (pluginRegistry.value || []).filter(p => p.install_type === 'builtin' && !isPluginInstalled(p.id))
+    )
 
     const handleDatabaseSave = async (e) => {
       e.preventDefault()
@@ -439,25 +393,35 @@ export default {
       }
     }
 
-    onMounted(() => {
+    onMounted(async () => {
       loadProfile()
       loadToken()
       loadPwaConfig()
+      try {
+        await loadPluginCenterSetting()
+      } catch (e) {
+        console.warn('loadPluginCenterSetting failed:', e)
+      }
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
-      loadCloudreveConfig()
-      loadCloudreveStatus()
+      try {
+        await loadPlugins()
+      } catch (e) {
+        console.warn('loadPlugins failed:', e)
+      }
       if (isAdmin.value) {
         loadUsers()
         loadDatabaseConfig()
-        loadAiConfig()
       }
     })
     watch(() => state.ledgers, () => {
       if (state.ledgers.length && !accountLedgerId.value) accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
     }, { deep: true })
     watch(accountLedgerId, loadSettingsAccounts)
+    watch(activeTab, (tab) => {
+      if (tab === 'plugins') loadPlugins()
+    })
 
     return {
       activeTab,
@@ -520,29 +484,24 @@ export default {
       loadDatabaseConfig,
       handleDatabaseSave,
       handleDatabaseTest,
-      aiConfig,
-      aiConfigSaving,
-      loadAiConfig,
-      handleAiConfigSave,
-      cloudreveConfig,
-      cloudreveStatus,
-      cloudreveServerUrl,
-      cloudreveVerifyResult,
-      cloudreveBindEmail,
-      cloudreveBindPassword,
-      cloudreveCaptcha,
-      cloudreveCaptchaInput,
-      cloudreveBinding,
-      cloudreveVerifying,
-      cloudreveConfigSaving,
-      loadCloudreveConfig,
-      loadCloudreveStatus,
-      handleCloudreveConfigSave,
-      handleCloudreveVerify,
-      handleCloudreveOpenLogin,
-      handleCloudreveFetchCaptcha,
-      handleCloudreveBind,
-      handleCloudreveUnbind
+      pluginRegistry,
+      installedPlugins,
+      pluginsLoading,
+      pluginToggling,
+      loadPlugins,
+      handlePluginEnable,
+      handlePluginDisable,
+      handlePluginUninstall,
+      handlePluginInstall,
+      handlePluginConfig,
+      pluginConfigTarget,
+      availableToInstall,
+      isPluginEnabled,
+      showPluginConfigModal,
+      pluginCenterSaving,
+      pluginCenterEnabled,
+      loadPluginCenterSetting,
+      handlePluginCenterSave
     }
   },
   template: `
@@ -813,6 +772,25 @@ export default {
         </div>
       </div>
       <div v-if="isAdmin" class="form-card">
+        <div class="card-header"><h3>🧩 插件中心</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">开启后，设置中将显示「插件中心」标签，可管理 AI、网盘等插件。</p>
+          <form @submit="handlePluginCenterSave">
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input v-model="pluginCenterEnabled" type="checkbox">
+                <span>开启插件中心</span>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="pluginCenterSaving">
+                {{ pluginCenterSaving ? '保存中...' : '保存' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="form-card">
         <div class="card-header"><h3>👥 用户管理</h3></div>
         <div class="card-body">
           <form @submit="handleAddUser" class="inline-form">
@@ -964,115 +942,98 @@ export default {
       </div>
       </div>
 
-      <div v-show="activeTab === 'lab'" class="settings-panel">
+      <div v-show="activeTab === 'plugins'" class="settings-panel">
       <div class="form-card">
-        <div class="card-header"><h3>☁️ 网盘存储（Cloudreve）</h3><span class="badge badge-beta">Beta</span></div>
+        <div class="card-header"><h3>🧩 插件中心</h3></div>
         <div class="card-body">
-          <p class="form-hint" style="margin-bottom: 16px;">绑定 Cloudreve 网盘，在 Fino 中管理、上传文件。<a href="https://cloudrevev4.apifox.cn/" target="_blank" rel="noopener">API 文档</a></p>
-          <div v-if="isAdmin" style="margin-bottom: 20px;">
-            <form @submit="handleCloudreveConfigSave" class="inline-form">
-              <label class="checkbox-label" style="margin-right: 12px;">
-                <input v-model="cloudreveConfig.enabled" type="checkbox">
-                <span>开启网盘功能</span>
-              </label>
-              <button type="submit" class="btn btn-primary btn-sm" :disabled="cloudreveConfigSaving">
-                {{ cloudreveConfigSaving ? '保存中...' : '保存' }}
-              </button>
-            </form>
-          </div>
-          <template v-if="cloudreveConfig.enabled">
-            <div v-if="!cloudreveStatus.bound" class="cloudreve-bind-section">
-              <div class="form-group">
-                <label>Cloudreve 服务器地址</label>
-                <input v-model="cloudreveServerUrl" type="url" placeholder="https://your-cloudreve.com">
-              </div>
-              <div class="form-actions" style="margin-bottom: 16px;">
-                <button type="button" class="btn btn-outline" :disabled="cloudreveVerifying" @click="handleCloudreveVerify">
-                  {{ cloudreveVerifying ? '验证中...' : '验证' }}
-                </button>
-                <button v-if="cloudreveVerifyResult?.valid" type="button" class="btn btn-primary" @click="handleCloudreveOpenLogin">
-                  在新窗口打开 Cloudreve
-                </button>
-              </div>
-              <p v-if="cloudreveVerifyResult?.valid" class="form-hint" style="margin-bottom: 16px;">验证成功，填写 Cloudreve 账号密码即可绑定。若服务器启用验证码，绑定失败后再获取验证码。</p>
-              <form v-if="cloudreveVerifyResult?.valid" @submit="handleCloudreveBind">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>邮箱</label>
-                    <input v-model="cloudreveBindEmail" type="email" placeholder="Cloudreve 登录邮箱" required>
-                  </div>
-                  <div class="form-group">
-                    <label>密码</label>
-                    <input v-model="cloudreveBindPassword" type="password" placeholder="Cloudreve 密码" required>
-                  </div>
+          <p class="form-hint" style="margin-bottom: 16px;">AI 智能助手与 Cloudreve 网盘均为插件，可自由启用、禁用或卸载。</p>
+          <p v-if="!isAdmin" class="form-hint" style="margin-bottom: 16px; color: var(--color-warning);">启用/禁用/卸载插件需要管理员权限。</p>
+          <div v-if="pluginsLoading" class="empty-message">加载中...</div>
+          <template v-else>
+            <h4 style="margin: 0 0 12px 0; font-size: 14px;">已安装</h4>
+            <div class="items-list">
+              <div v-for="p in (installedPlugins.installed || [])" :key="p.id" class="item-card">
+                <div class="item-info">
+                  <span class="item-name">{{ p.name }}</span>
+                  <span class="item-desc">{{ p.manifest?.description || p.id }} · v{{ p.version }}</span>
+                  <span v-if="isPluginEnabled(p.id)" class="badge badge-success">已启用</span>
+                  <span v-else class="badge">已禁用</span>
                 </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>验证码 <span class="form-hint">（可选，若绑定失败提示需要时再获取）</span></label>
-                    <div class="captcha-row">
-                      <img v-if="cloudreveCaptcha?.image" :src="cloudreveCaptcha.image" alt="验证码" class="captcha-img">
-                      <button type="button" class="btn btn-outline btn-sm" @click="handleCloudreveFetchCaptcha">
-                        获取验证码
-                      </button>
-                      <input v-model="cloudreveCaptchaInput" type="text" placeholder="输入验证码" style="width: 100px;">
-                    </div>
-                  </div>
-                </div>
-                <div class="form-actions">
-                  <button type="submit" class="btn btn-primary" :disabled="cloudreveBinding">
-                    {{ cloudreveBinding ? '绑定中...' : '绑定' }}
+                <div class="item-actions">
+                  <button
+                    v-if="isPluginEnabled(p.id)"
+                    type="button"
+                    class="btn btn-sm btn-outline"
+                    :disabled="pluginToggling === p.id || !isAdmin"
+                    @click="handlePluginDisable(p.id)"
+                  >
+                    {{ pluginToggling === p.id ? '处理中...' : '禁用' }}
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="btn btn-sm btn-primary"
+                    :disabled="pluginToggling === p.id || !isAdmin"
+                    @click="handlePluginEnable(p.id)"
+                  >
+                    {{ pluginToggling === p.id ? '处理中...' : '启用' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline"
+                    title="配置"
+                    :disabled="pluginToggling === p.id"
+                    @click="handlePluginConfig(p)"
+                  >
+                    <span class="material-icons" style="font-size:16px;">settings</span> 配置
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline"
+                    :disabled="pluginToggling === p.id || !isAdmin"
+                    title="卸载后需重启应用"
+                    @click="handlePluginUninstall(p.id)"
+                  >
+                    <span class="material-icons" style="font-size:16px;">delete</span> 卸载
                   </button>
                 </div>
-              </form>
+              </div>
+              <p v-if="!installedPlugins.installed?.length" class="empty-message">暂无已安装插件</p>
             </div>
-            <div v-else>
-              <p class="form-hint">已绑定 Cloudreve：{{ cloudreveStatus.cloudreve_url }}</p>
-              <button type="button" class="btn btn-outline" @click="handleCloudreveUnbind">解绑</button>
+            <template v-if="(availableToInstall || []).length">
+              <h4 style="margin: 24px 0 12px 0; font-size: 14px;">可安装</h4>
+              <div class="items-list">
+                <div v-for="p in availableToInstall" :key="p.id" class="item-card">
+                  <div class="item-info">
+                    <span class="item-name">{{ p.name }}</span>
+                    <span class="item-desc">{{ p.description }} · v{{ p.version }}</span>
+                  </div>
+                  <div class="item-actions">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-primary"
+                      :disabled="pluginToggling === p.id || !isAdmin"
+                      @click="handlePluginInstall(p.id)"
+                    >
+                      {{ pluginToggling === p.id ? '安装中...' : '安装' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <div class="form-hint" style="margin-top: 16px;">
+              <strong>开发插件：</strong>按照 <code>docs/插件接口规范.md</code> 开发后放入 <code>plugins/</code> 目录即可。
             </div>
           </template>
-          <p v-else class="form-hint">网盘功能未开启，请联系管理员开启。</p>
-        </div>
-      </div>
-      <div v-if="isAdmin" class="form-card">
-        <div class="card-header"><h3>🤖 AI 聊天配置</h3><span class="badge badge-beta">Beta</span></div>
-        <div class="card-body">
-          <p class="form-hint" style="margin-bottom: 16px;">配置 AI 聊天功能，支持 OpenAI 通用格式 API。可配置第三方兼容服务（如 OpenAI、Azure、国内大模型等）。支持显示思维链（推理模型如 o1/o3）。</p>
-          <form @submit="handleAiConfigSave">
-            <div class="form-group">
-              <label>API 地址</label>
-              <input v-model="aiConfig.base_url" type="text" placeholder="https://api.openai.com/v1">
-              <p class="form-hint">兼容 OpenAI 格式的 API 地址，如 OpenAI、Azure、国内大模型代理等</p>
-            </div>
-            <div class="form-group">
-              <label>API Key</label>
-              <input v-model="aiConfig.api_key" type="password" placeholder="sk-xxx（留空保留原配置）">
-            </div>
-            <div class="form-group">
-              <label>模型名称</label>
-              <input v-model="aiConfig.model" type="text" placeholder="gpt-4o-mini">
-              <p class="form-hint">如 gpt-4o、gpt-4o-mini、o1-mini 等</p>
-            </div>
-            <div class="form-group checkbox-group">
-              <label class="checkbox-label">
-                <input v-model="aiConfig.show_thinking" type="checkbox">
-                <span>显示思维链</span>
-              </label>
-              <p class="form-hint">若模型支持推理（如 o1/o3），在回复中展示思考过程</p>
-            </div>
-            <div class="form-group">
-              <label>上下文记忆条数</label>
-              <input v-model.number="aiConfig.context_messages" type="number" min="1" max="100" placeholder="20">
-              <p class="form-hint">保留最近 N 条对话消息作为上下文，影响 AI 的记忆能力</p>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary" :disabled="aiConfigSaving">
-                {{ aiConfigSaving ? '保存中...' : '💾 保存 AI 配置' }}
-              </button>
-            </div>
-          </form>
         </div>
       </div>
       </div>
+      <PluginConfigModal
+        :show="showPluginConfigModal"
+        :plugin-id="pluginConfigTarget ? pluginConfigTarget.id : ''"
+        :plugin-name="pluginConfigTarget ? pluginConfigTarget.name : ''"
+        @close="showPluginConfigModal = false"
+      />
     </div>
   `
 }
