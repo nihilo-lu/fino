@@ -11,6 +11,18 @@ class InvestmentTracker {
         this.init();
     }
 
+    /** 带认证的 fetch：使用 Session Cookie；API 脚本可用 Bearer Token */
+    async apiFetch(url, options = {}) {
+        const headers = { ...(options.headers || {}) };
+        const response = await fetch(url, { ...options, headers, credentials: 'include' });
+        if (response.status === 401) {
+            this.handleLogout(true);
+            this.showToast('登录已过期，请重新登录', 'error');
+            throw new Error('未登录');
+        }
+        return response;
+    }
+
     init() {
         this.bindEvents();
         this.checkAuth();
@@ -104,13 +116,31 @@ class InvestmentTracker {
     }
 
     async checkAuth() {
-        const token = localStorage.getItem('auth_token');
-        const userData = localStorage.getItem('user_data');
-        if (token && userData) {
-            this.user = JSON.parse(userData);
-            this.showMainPage();
-        } else {
-            this.showPage('login-page');
+        try {
+            const response = await fetch(`${this.apiBase}/auth/me`, { credentials: 'include' });
+            if (response.ok) {
+                const data = await response.json();
+                const u = data.data || data;
+                this.user = u.username ? { username: u.username, name: u.name, email: u.email, roles: u.roles || [] } : null;
+                if (this.user) {
+                    this.showMainPage();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error('checkAuth error:', e);
+        }
+        this.showPage('login-page');
+    }
+
+    /** 从服务端获取当前 API Token */
+    async fetchToken() {
+        try {
+            const response = await this.apiFetch(`${this.apiBase}/auth/token`);
+            const data = await response.json();
+            return (data.data && data.data.token) || data.token || '';
+        } catch {
+            return '';
         }
     }
 
@@ -124,15 +154,16 @@ class InvestmentTracker {
             const response = await fetch(`${this.apiBase}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password }),
+                credentials: 'include'
             });
 
             const data = await response.json();
+            const resData = data.data || data;
 
             if (response.ok && data.success) {
-                this.user = data;
-                localStorage.setItem('auth_token', 'logged_in');
-                localStorage.setItem('user_data', JSON.stringify(data));
+                this.user = { username: resData.username, name: resData.name, email: resData.email, roles: resData.roles || [] };
+                localStorage.setItem('user_data', JSON.stringify(this.user));
                 this.showMainPage();
                 this.showToast('登录成功', 'success');
             } else {
@@ -189,12 +220,14 @@ class InvestmentTracker {
         }
     }
 
-    handleLogout() {
-        localStorage.removeItem('auth_token');
+    async handleLogout(silent = false) {
+        try {
+            await fetch(`${this.apiBase}/auth/logout`, { method: 'POST', credentials: 'include' });
+        } catch (e) { /* ignore */ }
         localStorage.removeItem('user_data');
         this.user = null;
         this.showPage('login-page');
-        this.showToast('已退出登录', 'success');
+        if (!silent) this.showToast('已退出登录', 'success');
     }
 
     showMainPage() {
@@ -209,7 +242,7 @@ class InvestmentTracker {
 
     async loadLedgers() {
         try {
-            const response = await fetch(`${this.apiBase}/ledgers?username=${this.user.username}`);
+            const response = await this.apiFetch(`${this.apiBase}/ledgers?username=${this.user.username}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -248,7 +281,7 @@ class InvestmentTracker {
         }
 
         try {
-            const response = await fetch(`${this.apiBase}/accounts?ledger_id=${this.currentLedgerId}`);
+            const response = await this.apiFetch(`${this.apiBase}/accounts?ledger_id=${this.currentLedgerId}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -283,7 +316,7 @@ class InvestmentTracker {
                 params.append('account_id', this.currentAccountId);
             }
 
-            const response = await fetch(`${this.apiBase}/portfolio/stats?${params}`);
+            const response = await this.apiFetch(`${this.apiBase}/portfolio/stats?${params}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -336,7 +369,7 @@ class InvestmentTracker {
                 params.append('account_id', this.currentAccountId);
             }
 
-            const response = await fetch(`${this.apiBase}/positions?${params}`);
+            const response = await this.apiFetch(`${this.apiBase}/positions?${params}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -504,7 +537,7 @@ class InvestmentTracker {
                 params.append('account_id', this.currentAccountId);
             }
 
-            const response = await fetch(`${this.apiBase}/transactions?${params}`);
+            const response = await this.apiFetch(`${this.apiBase}/transactions?${params}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -571,7 +604,7 @@ class InvestmentTracker {
                 params.append('end_date', endDate);
             }
 
-            const response = await fetch(`${this.apiBase}/transactions?${params}`);
+            const response = await this.apiFetch(`${this.apiBase}/transactions?${params}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -653,7 +686,7 @@ class InvestmentTracker {
         if (!confirm('确定要删除这条交易记录吗？')) return;
 
         try {
-            const response = await fetch(`${this.apiBase}/transactions/${id}`, {
+            const response = await this.apiFetch(`${this.apiBase}/transactions/${id}`, {
                 method: 'DELETE'
             });
 
@@ -693,7 +726,7 @@ class InvestmentTracker {
                 params.append('type', type);
             }
 
-            const response = await fetch(`${this.apiBase}/fund-transactions?${params}`);
+            const response = await this.apiFetch(`${this.apiBase}/fund-transactions?${params}`);
             const data = await response.json();
 
             if (response.ok) {
@@ -745,7 +778,7 @@ class InvestmentTracker {
 
     async loadCategories() {
         try {
-            const response = await fetch(`${this.apiBase}/categories`);
+            const response = await this.apiFetch(`${this.apiBase}/categories`);
             const data = await response.json();
 
             if (response.ok) {
@@ -786,7 +819,7 @@ class InvestmentTracker {
         };
 
         try {
-            const response = await fetch(`${this.apiBase}/transactions`, {
+            const response = await this.apiFetch(`${this.apiBase}/transactions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(transaction)
@@ -882,7 +915,7 @@ class InvestmentTracker {
         };
 
         try {
-            const response = await fetch(`${this.apiBase}/fund-transactions`, {
+            const response = await this.apiFetch(`${this.apiBase}/fund-transactions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fund)
@@ -907,6 +940,87 @@ class InvestmentTracker {
         await this.loadLedgers();
         this.renderLedgersList();
         this.renderAccountsList();
+        this.renderTokenSection();
+    }
+
+    async renderTokenSection() {
+        const input = document.getElementById('api-token-input');
+        const genBtn = document.getElementById('token-generate-btn');
+        const resetBtn = document.getElementById('token-reset-btn');
+        if (!input) return;
+        const token = await this.fetchToken();
+        input.value = token || '';
+        input.placeholder = token ? '' : '点击「生成」创建 Token';
+        if (genBtn) genBtn.style.display = token ? 'none' : '';
+        if (resetBtn) resetBtn.style.display = token ? '' : 'none';
+    }
+
+    async generateToken() {
+        try {
+            const response = await this.apiFetch(`${this.apiBase}/auth/token/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            const token = (data.data && data.data.token) || data.token || '';
+            if (token) {
+                document.getElementById('api-token-input').value = token;
+                document.getElementById('api-token-input').placeholder = '';
+                document.getElementById('token-generate-btn').style.display = 'none';
+                document.getElementById('token-reset-btn').style.display = '';
+                this.showToast('Token 生成成功', 'success');
+            } else {
+                this.showToast(data.error || '生成失败', 'error');
+            }
+        } catch (e) {
+            this.showToast('生成失败', 'error');
+        }
+    }
+
+    async resetToken() {
+        if (!confirm('重置后旧 Token 将失效，确定继续？')) return;
+        try {
+            const response = await this.apiFetch(`${this.apiBase}/auth/token/reset`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            const token = (data.data && data.data.token) || data.token || '';
+            if (token) {
+                document.getElementById('api-token-input').value = token;
+                this.showToast('Token 已重置', 'success');
+            } else {
+                this.showToast(data.error || '重置失败', 'error');
+            }
+        } catch (e) {
+            this.showToast('重置失败', 'error');
+        }
+    }
+
+    copyToken() {
+        const token = document.getElementById('api-token-input')?.value;
+        if (!token) {
+            this.showToast('请先生成 Token', 'warning');
+            return;
+        }
+        navigator.clipboard.writeText(token).then(() => {
+            this.showToast('Token 已复制到剪贴板', 'success');
+        }).catch(() => {
+            this.showToast('复制失败', 'error');
+        });
+    }
+
+    toggleTokenVisibility() {
+        const input = document.getElementById('api-token-input');
+        const icon = document.getElementById('token-visibility-icon');
+        if (!input || !icon) return;
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.textContent = 'visibility_off';
+        } else {
+            input.type = 'password';
+            icon.textContent = 'visibility';
+        }
     }
 
     renderLedgersList() {
@@ -944,7 +1058,7 @@ class InvestmentTracker {
         }
 
         try {
-            const response = await fetch(`${this.apiBase}/ledgers`, {
+            const response = await this.apiFetch(`${this.apiBase}/ledgers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -975,7 +1089,7 @@ class InvestmentTracker {
         if (!confirm('确定要删除这个账本吗？所有相关数据将被删除。')) return;
 
         try {
-            const response = await fetch(`${this.apiBase}/ledgers/${id}?username=${this.user.username}`, {
+            const response = await this.apiFetch(`${this.apiBase}/ledgers/${id}?username=${this.user.username}`, {
                 method: 'DELETE'
             });
 
@@ -1030,7 +1144,7 @@ class InvestmentTracker {
         }
 
         try {
-            const response = await fetch(`${this.apiBase}/accounts`, {
+            const response = await this.apiFetch(`${this.apiBase}/accounts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1061,7 +1175,7 @@ class InvestmentTracker {
         if (!confirm('确定要删除这个账户吗？所有相关数据将被删除。')) return;
 
         try {
-            const response = await fetch(`${this.apiBase}/accounts/${id}`, {
+            const response = await this.apiFetch(`${this.apiBase}/accounts/${id}`, {
                 method: 'DELETE'
             });
 

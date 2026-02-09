@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +19,10 @@ def get_categories():
         database = get_db()
         categories = database.get_categories()
         categories_list = categories.to_dict(orient="records") if not categories.empty else []
-        return cors_jsonify({"categories": categories_list})
+        return api_success(data={"categories": categories_list})
     except Exception as e:
         logger.error(f"Get categories error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
 
 
 @reference_bp.route("/currencies", methods=["GET"])
@@ -31,7 +31,7 @@ def get_currencies():
         database = get_db()
         currencies = database.get_currencies()
         currencies_list = currencies.to_dict(orient="records") if not currencies.empty else []
-        return cors_jsonify({"currencies": currencies_list})
+        return api_success(data={"currencies": currencies_list})
     except Exception as e:
         logger.error(f"Get currencies error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)

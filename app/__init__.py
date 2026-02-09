@@ -5,10 +5,12 @@
 
 import os
 import logging
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 
 from app.config import get_config_path
+from app.auth_middleware import get_token_from_request, verify_token
+from app.utils import api_error
 from app.blueprints.main import main_bp
 from app.blueprints.auth import auth_bp
 from app.blueprints.ledgers import ledgers_bp
@@ -44,11 +46,37 @@ def create_app(config_path: str | None = None) -> Flask:
     # 1. 加载配置
     app.config["CONFIG_PATH"] = config_path
     app.config["STATIC_FOLDER"] = static_folder
+    # Session 密钥（用于 Web 登录态）
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(config_path)
+        app.config["SECRET_KEY"] = cfg.get("cookie", {}).get("key", "investment_tracker_secret")
+    except Exception:
+        app.config["SECRET_KEY"] = "investment_tracker_secret"
 
     # 2. 初始化扩展
-    CORS(app)
+    CORS(app, supports_credentials=True)
 
-    # 3. 注册蓝图
+    # 3. 认证：支持 (1) Session 登录 (2) API Token (Bearer)
+    _EXEMPT_PATHS = ["/api/auth/login", "/api/auth/register", "/api/health"]
+
+    @app.before_request
+    def require_auth():
+        if request.path in _EXEMPT_PATHS or not request.path.startswith("/api/"):
+            return None
+        # 1) API Token（Bearer）
+        token = get_token_from_request()
+        if token:
+            payload = verify_token(token)
+            if payload:
+                return None
+        # 2) Session（Web 登录）
+        from flask import session
+        if session.get("username"):
+            return None
+        return api_error("未登录或 Token 已过期，请重新登录", 401)
+
+    # 4. 注册蓝图
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(ledgers_bp)
@@ -60,7 +88,7 @@ def create_app(config_path: str | None = None) -> Flask:
     app.register_blueprint(market_bp)
     app.register_blueprint(analysis_bp)
 
-    # 4. 配置日志
+    # 5. 配置日志
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",

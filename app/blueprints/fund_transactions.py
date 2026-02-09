@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint, request
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +36,14 @@ def get_fund_transactions():
         )
         fund_list = fund_transactions.to_dict(orient="records") if not fund_transactions.empty else []
 
-        return cors_jsonify({
+        return api_success(data={
             "fund_transactions": fund_list,
             "limit": limit,
             "offset": offset,
         })
     except Exception as e:
         logger.error(f"Get fund transactions error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
 
 
 @fund_transactions_bp.route("/fund-transactions", methods=["POST"])
@@ -52,7 +52,7 @@ def create_fund_transaction():
 
     required_fields = ["ledger_id", "account_id", "type", "date"]
     if not all(data.get(f) for f in required_fields):
-        return cors_jsonify({"error": "缺少必填字段"}, 400)
+        return api_error("缺少必填字段", 400)
 
     try:
         database = get_db()
@@ -70,8 +70,8 @@ def create_fund_transaction():
 
         result = database.add_fund_transaction(fund_trans)
         if result:
-            return cors_jsonify({"success": True, "message": "资金明细添加成功"})
-        return cors_jsonify({"error": "添加资金明细失败"}, 500)
+            return api_success(message="资金明细添加成功")
+        return api_error("添加资金明细失败", 500)
     except Exception as e:
         logger.error(f"Create fund transaction error: {e}")
         return cors_jsonify({"error": str(e)}, 500)

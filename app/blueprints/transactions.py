@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint, request
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def get_transactions():
             end_date=end_date,
         )
 
-        return cors_jsonify({
+        return api_success(data={
             "transactions": transactions_list,
             "total": total_count,
             "limit": limit,
@@ -55,7 +55,7 @@ def get_transactions():
         })
     except Exception as e:
         logger.error(f"Get transactions error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
 
 
 @transactions_bp.route("/transactions", methods=["POST"])
@@ -64,7 +64,7 @@ def create_transaction():
 
     required_fields = ["ledger_id", "account_id", "type", "code", "name", "date"]
     if not all(data.get(f) for f in required_fields):
-        return cors_jsonify({"error": "缺少必填字段"}, 400)
+        return api_error("缺少必填字段", 400)
 
     try:
         database = get_db()
@@ -85,8 +85,8 @@ def create_transaction():
 
         result = database.add_transaction(transaction)
         if result:
-            return cors_jsonify({"success": True, "message": "交易记录添加成功"})
-        return cors_jsonify({"error": "添加交易记录失败"}, 500)
+            return api_success(message="交易记录添加成功")
+        return api_error("添加交易记录失败", 500)
     except Exception as e:
         logger.error(f"Create transaction error: {e}")
         return cors_jsonify({"error": str(e)}, 500)
@@ -98,8 +98,8 @@ def delete_transaction(transaction_id):
         database = get_db()
         result = database.delete_transaction(transaction_id)
         if result:
-            return cors_jsonify({"success": True, "message": "删除成功"})
-        return cors_jsonify({"error": "删除失败"}, 500)
+            return api_success(message="删除成功")
+        return api_error("删除失败", 404)
     except Exception as e:
         logger.error(f"Delete transaction error: {e}")
         return cors_jsonify({"error": str(e)}, 500)

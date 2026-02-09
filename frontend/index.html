@@ -514,6 +514,35 @@
                     <div id="settings-view" class="view">
                         <div class="form-card">
                             <div class="card-header">
+                                <h3>API 访问令牌</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Token 用于 API 调用（如脚本、第三方工具），退出登录和修改密码后仍有效</label>
+                                    <div class="token-display">
+                                        <input type="password" id="api-token-input" readonly class="token-input" placeholder="点击「生成」创建 Token">
+                                        <button type="button" class="btn btn-primary" id="token-generate-btn" onclick="app.generateToken()" title="生成">
+                                            <span class="material-icons">add</span>
+                                            生成
+                                        </button>
+                                        <button type="button" class="btn btn-outline" id="token-reset-btn" onclick="app.resetToken()" title="重置" style="display:none">
+                                            <span class="material-icons">refresh</span>
+                                            重置
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="app.copyToken()" title="复制">
+                                            <span class="material-icons">content_copy</span>
+                                            复制
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="app.toggleTokenVisibility()" title="显示/隐藏">
+                                            <span class="material-icons" id="token-visibility-icon">visibility</span>
+                                        </button>
+                                    </div>
+                                    <p class="form-hint">Token 在设置中生成，永久有效。重置后旧 Token 失效。请勿泄露给他人。</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-card">
+                            <div class="card-header">
                                 <h3>账本管理</h3>
                             </div>
                             <div class="card-body">

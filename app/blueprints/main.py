@@ -5,14 +5,14 @@
 from datetime import datetime
 from flask import Blueprint, send_from_directory, current_app
 
-from app.utils import cors_jsonify
+from app.utils import api_success
 
 main_bp = Blueprint("main", __name__)
 
 
 @main_bp.route("/api/health", methods=["GET"])
 def health_check():
-    return cors_jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
+    return api_success(data={"status": "ok", "timestamp": datetime.now().isoformat()})
 
 
 @main_bp.route("/")

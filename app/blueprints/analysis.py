@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint, request
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,10 @@ def get_returns_analysis():
         return_rate = database.get_latest_cumulative_return(ledger_id)
         portfolio_stats = database.get_portfolio_stats(ledger_id, account_id)
 
-        return cors_jsonify({
+        return api_success(data={
             "cumulative_return": return_rate,
             "portfolio_stats": portfolio_stats,
         })
     except Exception as e:
         logger.error(f"Get returns analysis error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)

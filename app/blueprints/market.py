@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint, request
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,14 @@ def fetch_market_price():
     code = data.get("code")
 
     if not code:
-        return cors_jsonify({"error": "股票代码为必填"}, 400)
+        return api_error("股票代码为必填", 400)
 
     try:
         database = get_db()
         price = database.fetch_market_price(code)
         if price is not None:
-            return cors_jsonify({"success": True, "price": price})
-        return cors_jsonify({"error": "无法获取价格"}, 500)
+            return api_success(data={"price": price})
+        return api_error("无法获取价格", 500)
     except Exception as e:
         logger.error(f"Fetch market price error: {e}")
         return cors_jsonify({"error": str(e)}, 500)
@@ -38,14 +38,14 @@ def fetch_exchange_rate():
     currency = data.get("currency")
 
     if not currency:
-        return cors_jsonify({"error": "币种代码为必填"}, 400)
+        return api_error("币种代码为必填", 400)
 
     try:
         database = get_db()
         rate = database.fetch_exchange_rate_from_market(currency)
         if rate is not None:
-            return cors_jsonify({"success": True, "rate": rate})
-        return cors_jsonify({"error": "无法获取汇率"}, 500)
+            return api_success(data={"rate": rate})
+        return api_error("无法获取汇率", 500)
     except Exception as e:
         logger.error(f"Fetch exchange rate error: {e}")
         return cors_jsonify({"error": str(e)}, 500)

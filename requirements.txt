@@ -1,0 +1,7 @@
+Flask>=2.0
+flask-cors>=3.0
+bcrypt>=4.0
+PyYAML>=6.0
+PyJWT>=2.0
+pandas>=1.5
+akshare>=1.0

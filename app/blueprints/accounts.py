@@ -6,7 +6,7 @@ import logging
 from flask import Blueprint, request
 
 from app.extensions import get_db
-from app.utils import cors_jsonify
+from app.utils import api_error, api_success
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ def get_accounts():
         database = get_db()
         accounts = database.get_accounts(ledger_id)
         accounts_list = accounts.to_dict(orient="records") if not accounts.empty else []
-        return cors_jsonify({"accounts": accounts_list})
+        return api_success(data={"accounts": accounts_list})
     except Exception as e:
         logger.error(f"Get accounts error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
 
 
 @accounts_bp.route("/accounts", methods=["POST"])
@@ -36,14 +36,27 @@ def create_account():
     description = data.get("description", "")
 
     if not all([ledger_id, name, acc_type]):
-        return cors_jsonify({"error": "账本ID、账户名称和类型为必填"}, 400)
+        return api_error("账本ID、账户名称和类型为必填", 400)
 
     try:
         database = get_db()
         result = database.add_account(ledger_id, name, acc_type, currency, description)
         if result:
-            return cors_jsonify({"success": True, "message": "账户创建成功"})
-        return cors_jsonify({"error": "创建账户失败"}, 500)
+            return api_success(message="账户创建成功")
+        return api_error("创建账户失败", 500)
     except Exception as e:
         logger.error(f"Create account error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
+
+
+@accounts_bp.route("/accounts/<int:account_id>", methods=["DELETE"])
+def delete_account(account_id):
+    try:
+        database = get_db()
+        result = database.delete_account(account_id)
+        if result:
+            return api_success(message="账户删除成功")
+        return api_error("删除失败，账户不存在或有关联数据", 404)
+    except Exception as e:
+        logger.error(f"Delete account error: {e}")
+        return api_error(str(e), 500)

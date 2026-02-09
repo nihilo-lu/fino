@@ -809,6 +809,25 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+.token-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.token-input {
+    flex: 1;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.form-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
 .inline-form {
     display: flex;
     align-items: center;
