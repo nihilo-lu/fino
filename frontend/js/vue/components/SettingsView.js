@@ -147,7 +147,10 @@ export default {
       pluginToggling.value = pluginId
       const ok = await actions.uninstallPlugin(pluginId)
       pluginToggling.value = null
-      if (ok) loadPlugins()
+      if (ok) {
+        activeTab.value = 'plugins'
+        await loadPlugins()
+      }
     }
 
     const handlePluginInstall = async (pluginId) => {

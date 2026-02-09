@@ -618,7 +618,7 @@ const actions = {
   async fetchPluginRegistry() {
     const response = await apiFetch(`${API_BASE}/plugins/registry`)
     const data = await parseJson(response)
-    if (response.ok && data?.success) return data.data?.plugins ?? []
+    if (response.ok && data?.success) return data.plugins ?? data.data?.plugins ?? []
     return []
   },
 
