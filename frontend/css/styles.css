@@ -682,6 +682,12 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    transition: margin-left var(--transition-normal);
+}
+
+/* 侧边栏收起时主内容全屏 */
+.sidebar.collapsed ~ .main-content {
+    margin-left: 0;
 }
 
 .top-bar {
