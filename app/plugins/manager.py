@@ -173,10 +173,18 @@ class PluginManager:
             return False
         self._enabled.add(plugin_id)
         if self.app and plugin_id not in self._loaded:
-            self._loaded[plugin_id] = plugin
-            plugin.register(self.app)
-            if hasattr(plugin, "on_enable"):
-                plugin.on_enable(self.app)
+            try:
+                plugin.register(self.app)
+                if hasattr(plugin, "on_enable"):
+                    plugin.on_enable(self.app)
+                self._loaded[plugin_id] = plugin
+            except Exception as e:
+                logger.exception("插件注册失败 %s: %s", plugin_id, e)
+                # 注册失败则回滚：从 enabled 列表中移除
+                enabled.discard(plugin_id)
+                self._save_enabled_list(enabled)
+                self._enabled.discard(plugin_id)
+                return False
         return True
 
     def disable_plugin(self, plugin_id: str) -> bool:

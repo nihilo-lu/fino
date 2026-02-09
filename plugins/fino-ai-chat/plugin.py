@@ -27,9 +27,9 @@ class Plugin(PluginInterface):
         )
 
     def register(self, app) -> None:
-        app.register_blueprint(ai_bp)
+        if ai_bp.name not in app.blueprints:
+            app.register_blueprint(ai_bp)
 
     def unregister(self, app) -> None:
-        """从应用移除插件（需重启应用后路由才完全失效）"""
-        if ai_bp.name in app.blueprints:
-            app.blueprints.pop(ai_bp.name, None)
+        # 不实际移除蓝图：Flask 无法安全移除 url_map 中的路由，且 check_plugin_enabled 会拦截请求返回 404
+        pass
