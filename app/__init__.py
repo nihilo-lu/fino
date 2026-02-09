@@ -3,6 +3,8 @@
 支持多环境配置、蓝图注册、扩展初始化、插件系统
 """
 
+__version__ = "1.0.0"
+
 import os
 import logging
 from flask import Flask, request

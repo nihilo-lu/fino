@@ -168,6 +168,10 @@ export default {
     const pluginCenterSaving = ref(false)
     const pluginCenterEnabled = ref(true)
 
+    // 检测升级
+    const updateCheckLoading = ref(false)
+    const updateInfo = ref(null)
+
     const loadPluginCenterSetting = async () => {
       await actions.fetchPluginCenterSetting()
       pluginCenterEnabled.value = state.pluginCenterEnabled
@@ -179,6 +183,18 @@ export default {
       const ok = await actions.savePluginCenterSetting(pluginCenterEnabled.value)
       pluginCenterSaving.value = false
       if (ok) loadPluginCenterSetting()
+    }
+
+    const handleCheckUpdate = async () => {
+      updateCheckLoading.value = true
+      updateInfo.value = null
+      try {
+        const data = await actions.fetchCheckUpdate()
+        updateInfo.value = data
+      } catch (e) {
+        updateInfo.value = { error: '检测失败' }
+      }
+      updateCheckLoading.value = false
     }
 
     const isPluginEnabled = (pluginId) => installedPlugins.value.enabled?.includes(pluginId) ?? false
@@ -504,7 +520,10 @@ export default {
       pluginCenterSaving,
       pluginCenterEnabled,
       loadPluginCenterSetting,
-      handlePluginCenterSave
+      handlePluginCenterSave,
+      updateCheckLoading,
+      updateInfo,
+      handleCheckUpdate
     }
   },
   template: `
@@ -715,6 +734,30 @@ export default {
       </div>
 
       <div v-show="activeTab === 'system'" class="settings-panel">
+      <div class="form-card">
+        <div class="card-header"><h3>🔄 检测升级</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">检查 GitHub 是否有新版本发布</p>
+          <div class="form-actions">
+            <button type="button" class="btn btn-primary" :disabled="updateCheckLoading" @click="handleCheckUpdate">
+              <span class="material-icons" style="vertical-align: middle; font-size: 18px;">refresh</span>
+              {{ updateCheckLoading ? '检测中...' : '检测升级' }}
+            </button>
+          </div>
+          <div v-if="updateInfo && !updateInfo.error" class="update-result" style="margin-top: 16px; padding: 12px; background: var(--color-bg-secondary, #f8fafc); border-radius: 8px;">
+            <p v-if="updateInfo.has_update" style="margin: 0 0 8px 0; color: var(--color-success, #10b981);">
+              <strong>有新版本可用</strong>：v{{ updateInfo.latest }}（当前 v{{ updateInfo.current }}）
+            </p>
+            <p v-else style="margin: 0 0 8px 0; color: var(--color-text-secondary, #64748b);">
+              当前已是最新版本 v{{ updateInfo.current }}
+            </p>
+            <a v-if="updateInfo.has_update && updateInfo.release_url" :href="updateInfo.release_url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary" style="margin-top: 8px;">
+              前往 GitHub 下载 ↗
+            </a>
+          </div>
+          <p v-else-if="updateInfo?.error" class="form-hint" style="margin-top: 16px; color: var(--color-warning);">{{ updateInfo.error }}</p>
+        </div>
+      </div>
       <div class="form-card">
         <div class="card-header"><h3>📱 PWA 应用配置</h3></div>
         <div class="card-body">

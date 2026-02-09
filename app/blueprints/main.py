@@ -41,6 +41,77 @@ def health_check():
     return api_success(data={"status": "ok", "timestamp": datetime.now().isoformat()})
 
 
+def _parse_version(v):
+    """解析语义化版本为 (major, minor, patch) 元组"""
+    if not v:
+        return (0, 0, 0)
+    s = str(v).lstrip("vV")
+    parts = s.split(".")[:3]
+    try:
+        return tuple(int(p) if p.isdigit() else 0 for p in (parts + ["0", "0", "0"])[:3])
+    except (ValueError, TypeError):
+        return (0, 0, 0)
+
+
+def _version_lt(current, latest):
+    """判断 current 是否小于 latest"""
+    return _parse_version(current) < _parse_version(latest)
+
+
+@main_bp.route("/api/version", methods=["GET"])
+def get_version():
+    """获取当前版本（需登录）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from app import __version__
+    return api_success(data={"version": __version__})
+
+
+@main_bp.route("/api/check-update", methods=["GET"])
+def check_update():
+    """检测是否有新版本（需登录，从 GitHub Releases 获取）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from app import __version__
+    current = __version__
+    latest = None
+    release_url = None
+    release_notes = None
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://api.github.com/repos/nihilo-lu/fino/releases/latest",
+            headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "fino-check-update"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()
+        import json
+        obj = json.loads(data)
+        latest = obj.get("tag_name", "").lstrip("vV")
+        release_url = obj.get("html_url", "")
+        release_notes = (obj.get("body") or "")[:500]
+    except Exception:
+        pass
+    if not latest:
+        return api_success(data={
+            "current": current,
+            "latest": current,
+            "has_update": False,
+            "release_url": None,
+            "release_notes": None,
+        })
+    has_update = _version_lt(current, latest)
+    return api_success(data={
+        "current": current,
+        "latest": latest,
+        "has_update": has_update,
+        "release_url": release_url,
+        "release_notes": release_notes,
+    })
+
+
 @main_bp.route("/api/pwa/config", methods=["GET"])
 def get_pwa_config():
     """获取 PWA 配置（公开，供 manifest 和前端使用）"""

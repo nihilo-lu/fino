@@ -301,6 +301,12 @@ const actions = {
     return data?.data || data
   },
 
+  async fetchCheckUpdate() {
+    const response = await apiFetch(`${API_BASE}/check-update`)
+    const data = await parseJson(response)
+    return data?.data || data
+  },
+
   async updateProfile({ username, nickname, email }) {
     const response = await apiFetch(`${API_BASE}/auth/profile`, {
       method: 'PUT',
