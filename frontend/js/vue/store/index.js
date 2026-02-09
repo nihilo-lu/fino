@@ -268,6 +268,27 @@ const actions = {
     return token
   },
 
+  async fetchPwaConfig() {
+    const response = await fetch(`${API_BASE}/pwa/config`)
+    const data = await parseJson(response)
+    return data?.data || data
+  },
+
+  async savePwaConfig(pwa) {
+    const response = await apiFetch(`${API_BASE}/pwa/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pwa)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('PWA 配置已保存', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
   async resetToken() {
     if (!confirm('重置后旧 Token 将失效，确定继续？')) return ''
     const response = await apiFetch(`${API_BASE}/auth/token/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })

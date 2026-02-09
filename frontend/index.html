@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#E8A317">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="投资追踪">
     <title>投资追踪器</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/frontend/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/frontend/icons/icon-192.png">
     <link rel="stylesheet" href="/frontend/css/styles.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -29,5 +36,14 @@
     <div id="app"></div>
 
     <script type="module" src="/frontend/js/vue/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => console.log('PWA Service Worker 已注册'))
+            .catch((err) => console.warn('SW 注册失败:', err));
+        });
+      }
+    </script>
 </body>
 </html>

@@ -25,5 +25,15 @@ credentials:
       - admin
       failed_login_attempts: 0
       logged_in: false
+      api_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im5paGlsbyIsImlhdCI6MTc3MDYzODg1Nn0.HdDktUb1WBg21sppk1j2BDbu6VxnQYndzAVueO74tqg
 pre-authorized:
   emails: []
+pwa:
+  name: 投资追踪器
+  short_name: 投资追踪
+  description: 投资组合追踪与收益分析工具
+  theme_color: "#E8A317"
+  background_color: "#ffffff"
+  display: standalone
+  icon_192: /frontend/icons/icon-192.png
+  icon_512: /frontend/icons/icon-512.png

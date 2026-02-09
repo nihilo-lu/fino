@@ -7,6 +7,17 @@ export default {
     const { state, actions } = useStore()
     const apiToken = ref('')
     const tokenVisible = ref(false)
+    const pwaConfig = ref({
+      name: '投资追踪器',
+      short_name: '投资追踪',
+      description: '投资组合追踪与收益分析工具',
+      theme_color: '#E8A317',
+      background_color: '#ffffff',
+      display: 'standalone',
+      icon_192: '/frontend/icons/icon-192.png',
+      icon_512: '/frontend/icons/icon-512.png'
+    })
+    const pwaSaving = ref(false)
     const newLedgerName = ref('')
     const newLedgerDesc = ref('')
     const accountLedgerId = ref('')
@@ -30,6 +41,19 @@ export default {
 
     const loadToken = async () => {
       apiToken.value = await actions.fetchToken()
+    }
+
+    const loadPwaConfig = async () => {
+      const cfg = await actions.fetchPwaConfig()
+      if (cfg) pwaConfig.value = { ...pwaConfig.value, ...cfg }
+    }
+
+    const handlePwaSave = async (e) => {
+      e.preventDefault()
+      pwaSaving.value = true
+      const ok = await actions.savePwaConfig(pwaConfig.value)
+      pwaSaving.value = false
+      if (ok) loadPwaConfig()
     }
 
     const generateToken = async () => {
@@ -104,6 +128,7 @@ export default {
 
     onMounted(() => {
       loadToken()
+      loadPwaConfig()
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
@@ -119,6 +144,10 @@ export default {
       actions,
       apiToken,
       tokenVisible,
+      pwaConfig,
+      pwaSaving,
+      loadPwaConfig,
+      handlePwaSave,
       newLedgerName,
       newLedgerDesc,
       accountLedgerId,
@@ -137,6 +166,65 @@ export default {
   },
   template: `
     <div id="settings-view" class="view">
+      <div class="form-card">
+        <div class="card-header"><h3>📱 PWA 应用配置</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">自定义安装到主屏幕时的应用名称、图标和主题色</p>
+          <form @submit="handlePwaSave">
+            <div class="form-row">
+              <div class="form-group">
+                <label>应用名称</label>
+                <input v-model="pwaConfig.name" type="text" placeholder="如：投资追踪器">
+              </div>
+              <div class="form-group">
+                <label>短名称</label>
+                <input v-model="pwaConfig.short_name" type="text" placeholder="如：投资追踪">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>应用描述</label>
+                <input v-model="pwaConfig.description" type="text" placeholder="投资组合追踪与收益分析工具">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>主题色</label>
+                <input v-model="pwaConfig.theme_color" type="text" placeholder="#E8A317">
+              </div>
+              <div class="form-group">
+                <label>背景色</label>
+                <input v-model="pwaConfig.background_color" type="text" placeholder="#ffffff">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>启动方式</label>
+                <select v-model="pwaConfig.display">
+                  <option value="standalone">独立应用（推荐）</option>
+                  <option value="minimal-ui">最小浏览器 UI</option>
+                  <option value="browser">浏览器</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>图标 192×192</label>
+                <input v-model="pwaConfig.icon_192" type="text" placeholder="/frontend/icons/icon-192.png">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>图标 512×512</label>
+                <input v-model="pwaConfig.icon_512" type="text" placeholder="/frontend/icons/icon-512.png">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="pwaSaving">
+                {{ pwaSaving ? '保存中...' : '💾 保存 PWA 配置' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
       <div class="form-card">
         <div class="card-header"><h3>API 访问令牌</h3></div>
         <div class="card-body">
