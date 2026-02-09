@@ -301,6 +301,20 @@ class Database:
             row = cursor.fetchone()
             currency_id = row[0] if row else None
             if currency_id is None:
+                # 尝试插入默认币种
+                rate = DEFAULT_EXCHANGE_RATES.get(currency, 1.0)
+                info = {"CNY": ("人民币", "¥"), "HKD": ("港币", "HK$"), "USD": ("美元", "$"),
+                        "EUR": ("欧元", "€"), "GBP": ("英镑", "£"), "JPY": ("日元", "¥")}
+                name_str, symbol = info.get(currency, (currency, currency))
+                cursor.execute(
+                    "INSERT OR IGNORE INTO currencies (code, name, symbol, exchange_rate) VALUES (?, ?, ?, ?)",
+                    (currency, name_str, symbol, rate),
+                )
+                self.conn.commit()
+                cursor.execute("SELECT id FROM currencies WHERE code = ?", (currency,))
+                row = cursor.fetchone()
+                currency_id = row[0] if row else None
+            if currency_id is None:
                 logging.warning(f"币种 '{currency}' 不存在，添加账户失败")
                 return False
             cursor.execute(

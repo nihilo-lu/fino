@@ -1,13 +1,21 @@
 """
 缓存工具模块
 提供缓存装饰器和缓存管理功能，减少数据库查询和计算压力
+在 Flask 等非 Streamlit 环境下，缓存相关函数为安全空操作
 """
 
-import streamlit as st
 import hashlib
 import functools
 from typing import Optional, Any, Callable
 import logging
+
+# 延迟导入 Streamlit，Flask 环境下可无 Streamlit
+try:
+    import streamlit as st
+    _HAS_STREAMLIT = True
+except ImportError:
+    st = None
+    _HAS_STREAMLIT = False
 
 
 def make_cache_key(*args, **kwargs) -> str:
@@ -40,6 +48,8 @@ def cached_query(ttl: int = 300):
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            if not _HAS_STREAMLIT or st is None:
+                return func(*args, **kwargs)
             # 生成缓存键
             cache_key = f"{func.__name__}_{make_cache_key(*args, **kwargs)}"
             
@@ -71,22 +81,25 @@ def clear_cache(pattern: Optional[str] = None):
     Args:
         pattern: 缓存键模式（可选），如果提供则只清除匹配的缓存，否则清除所有缓存
     """
-    if '_query_cache' not in st.session_state:
+    if not _HAS_STREAMLIT or st is None:
+        return
+    session_state = getattr(st, 'session_state', None)
+    if session_state is None or '_query_cache' not in session_state:
         return
     
     if pattern:
         # 清除匹配模式的缓存
         keys_to_remove = [
-            key for key in st.session_state['_query_cache'].keys()
+            key for key in session_state['_query_cache'].keys()
             if pattern in key
         ]
         for key in keys_to_remove:
-            del st.session_state['_query_cache'][key]
+            del session_state['_query_cache'][key]
         logging.info(f"清除缓存: {len(keys_to_remove)} 个匹配 '{pattern}' 的缓存项")
     else:
         # 清除所有缓存
-        count = len(st.session_state['_query_cache'])
-        st.session_state['_query_cache'] = {}
+        count = len(session_state['_query_cache'])
+        session_state['_query_cache'] = {}
         logging.info(f"清除所有缓存: {count} 个缓存项")
 
 
@@ -96,18 +109,22 @@ def clear_related_cache(ledger_id: Optional[int] = None, account_id: Optional[in
     
     注意：Streamlit 的 @st.cache_data 缓存是基于函数签名和参数的哈希。
     当数据更新后，我们需要清除相关函数的缓存以确保数据一致性。
-    为了简化实现，我们清除所有 Streamlit 缓存数据，虽然这可能会影响一些性能，
-    但能确保数据一致性，且数据更新操作不频繁。
+    在 Flask 等非 Streamlit 环境下，此函数为空操作。
     
     Args:
         ledger_id: 账本ID（可选）
         account_id: 账户ID（可选）
     """
+    if not _HAS_STREAMLIT or st is None:
+        return
     try:
+        session_state = getattr(st, 'session_state', None)
+        if session_state is None:
+            return
         # 清除自定义的查询缓存（如果有）
-        if '_query_cache' in st.session_state:
+        if '_query_cache' in session_state:
             keys_to_remove = []
-            for key in list(st.session_state['_query_cache'].keys()):
+            for key in list(session_state['_query_cache'].keys()):
                 should_remove = False
                 
                 # 如果指定了 ledger_id，检查缓存键是否包含该账本ID
@@ -130,7 +147,7 @@ def clear_related_cache(ledger_id: Optional[int] = None, account_id: Optional[in
                     keys_to_remove.append(key)
             
             for key in keys_to_remove:
-                del st.session_state['_query_cache'][key]
+                del session_state['_query_cache'][key]
         
         # 清除所有 Streamlit 缓存数据
         # 这确保了数据更新后，所有相关缓存都会失效
@@ -164,11 +181,9 @@ def cached_dataframe(ttl: int = 300, show_spinner: bool = True):
             return db.get_ledgers()
     """
     def decorator(func: Callable) -> Callable:
-        @st.cache_data(ttl=ttl, show_spinner=show_spinner)
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        return wrapper
+        if not _HAS_STREAMLIT or st is None:
+            return func
+        return st.cache_data(ttl=ttl, show_spinner=show_spinner)(functools.wraps(func)(func))
     return decorator
 
 
@@ -186,9 +201,7 @@ def cached_dict(ttl: int = 300, show_spinner: bool = True):
             return db.get_portfolio_stats(ledger_id)
     """
     def decorator(func: Callable) -> Callable:
-        @st.cache_data(ttl=ttl, show_spinner=show_spinner)
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        return wrapper
+        if not _HAS_STREAMLIT or st is None:
+            return func
+        return st.cache_data(ttl=ttl, show_spinner=show_spinner)(functools.wraps(func)(func))
     return decorator

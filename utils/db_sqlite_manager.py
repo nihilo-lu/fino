@@ -264,6 +264,38 @@ class SQLiteManager:
                     (cat_name, cat_desc),
                 )
 
+        # 迁移 accounts 表：旧结构使用 currency(TEXT)，新结构使用 currency_id
+        cursor.execute("PRAGMA table_info(accounts)")
+        acc_cols = [c[1] for c in cursor.fetchall()]
+        if "currency_id" not in acc_cols and "currency" in acc_cols:
+            logging.info("迁移数据库：accounts 表从 currency(TEXT) 迁移到 currency_id")
+            cursor.execute("PRAGMA foreign_keys = OFF")
+            cursor.execute("""
+                CREATE TABLE accounts_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ledger_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    currency_id INTEGER NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (ledger_id) REFERENCES ledgers(id),
+                    FOREIGN KEY (currency_id) REFERENCES currencies(id),
+                    UNIQUE(ledger_id, name)
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO accounts_new (id, ledger_id, name, type, currency_id, description, created_at)
+                SELECT a.id, a.ledger_id, a.name, a.type,
+                       COALESCE(c.id, (SELECT id FROM currencies WHERE code = 'CNY' LIMIT 1)),
+                       a.description, COALESCE(a.created_at, CURRENT_TIMESTAMP)
+                FROM accounts a
+                LEFT JOIN currencies c ON c.code = COALESCE(a.currency, 'CNY')
+            """)
+            cursor.execute("DROP TABLE accounts")
+            cursor.execute("ALTER TABLE accounts_new RENAME TO accounts")
+            cursor.execute("PRAGMA foreign_keys = ON")
+
         # 检查是否存在 fund_transaction_entries 表
         cursor.execute("""
             SELECT name FROM sqlite_master 

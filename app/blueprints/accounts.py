@@ -16,13 +16,15 @@ accounts_bp = Blueprint("accounts", __name__, url_prefix="/api")
 @accounts_bp.route("/accounts", methods=["GET"])
 def get_accounts():
     ledger_id = request.args.get("ledger_id", type=int)
+    if ledger_id is None:
+        return api_error("需要 ledger_id 参数", 400)
     try:
         database = get_db()
         accounts = database.get_accounts(ledger_id)
         accounts_list = accounts.to_dict(orient="records") if not accounts.empty else []
         return api_success(data={"accounts": accounts_list})
     except Exception as e:
-        logger.error(f"Get accounts error: {e}")
+        logger.error(f"Get accounts error: {e}", exc_info=True)
         return api_error(str(e), 500)
 
 
@@ -43,9 +45,9 @@ def create_account():
         result = database.add_account(ledger_id, name, acc_type, currency, description)
         if result:
             return api_success(message="账户创建成功")
-        return api_error("创建账户失败", 500)
+        return api_error("创建账户失败，请检查币种是否存在（如 CNY）", 500)
     except Exception as e:
-        logger.error(f"Create account error: {e}")
+        logger.error(f"Create account error: {e}", exc_info=True)
         return api_error(str(e), 500)
 
 
