@@ -567,18 +567,28 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.logo-small {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+/* 侧边栏 Fino Logo，与登录框一致但按位置适配 */
+.fino-logo-sidebar {
+    text-align: center;
+    margin-bottom: 0;
 }
 
-.logo-small .material-icons {
-    color: var(--primary-color);
-    font-size: 28px;
+.fino-logo-sidebar .logo-text {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #1a1a1a;
+    letter-spacing: 4px;
+    margin: 0;
+    line-height: 1;
+}
+
+.fino-logo-sidebar .logo-tagline {
+    font-size: 9px;
+    color: #888;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 6px;
 }
 
 .user-info {

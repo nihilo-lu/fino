@@ -119,14 +119,6 @@ export default {
       pushState(pageId)
     }
 
-    const handleLedgerChange = (ledgerId) => {
-      actions.setCurrentLedger(ledgerId)
-    }
-
-    const handleAccountChange = (accountId) => {
-      actions.setCurrentAccount(accountId)
-    }
-
     const handleShowFundModal = () => {
       if (!state.currentLedgerId) {
         actions.showToast('请先选择账本', 'warning')
@@ -173,8 +165,6 @@ export default {
       handleCreateLedger,
       handleSwitchLedger,
       navigateTo,
-      handleLedgerChange,
-      handleAccountChange,
       handleShowFundModal,
       handleFundSubmitted,
       fundsRefreshTrigger,
@@ -224,13 +214,7 @@ export default {
         <main class="main-content">
           <Header
             :page-title="pageTitle"
-            :ledgers="state.ledgers"
-            :accounts="state.accounts"
-            :current-ledger-id="state.currentLedgerId"
-            :current-account-id="state.currentAccountId"
             @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
-            @ledger-change="handleLedgerChange"
-            @account-change="handleAccountChange"
           />
           <div class="content-area">
             <DashboardView

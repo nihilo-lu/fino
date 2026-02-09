@@ -11,9 +11,9 @@ export default {
   template: `
     <nav :class="['sidebar', { collapsed }]" id="sidebar">
       <div class="sidebar-header">
-        <div class="logo-small">
-          <span class="material-icons">trending_up</span>
-          <span>投资追踪器</span>
+        <div class="fino-logo fino-logo-sidebar">
+          <div class="logo-text">Fino</div>
+          <div class="logo-tagline">Investment</div>
         </div>
       </div>
       <div class="user-info">
