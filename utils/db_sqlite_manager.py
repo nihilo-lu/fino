@@ -7,27 +7,21 @@ import sqlite3
 import logging
 from typing import Optional
 
-# 默认汇率（相对于人民币）
-DEFAULT_EXCHANGE_RATES = {
-    "CNY": 1.0,  # 人民币
-    "HKD": 0.92,  # 港币
-    "USD": 7.25,  # 美元
-    "EUR": 7.85,  # 欧元
-    "GBP": 9.15,  # 英镑
-    "JPY": 0.048,  # 日元
-}
+from utils.default_currencies import get_all_default_currencies, get_currency_info
 
 
 class SQLiteManager:
     """SQLite 数据库管理器 - 基础设施层"""
 
-    def __init__(self, db_path: str = "investment.db"):
+    def __init__(self, db_path: str = "investment.db", config_path: Optional[str] = None):
         """初始化数据库连接
 
         Args:
             db_path: 数据库文件路径
+            config_path: 配置文件路径，用于读取 default_exchange_rates 等设置（可选）
         """
         self.db_path = db_path
+        self.config_path = config_path
         self.conn: Optional[sqlite3.Connection] = None
         self._connect()
         self._create_tables()
@@ -670,20 +664,11 @@ class SQLiteManager:
             )
 
     def _init_default_data(self):
-        """初始化默认数据（仅在首次创建时）"""
+        """初始化默认数据（仅在首次创建时），币种与汇率使用设置中的默认值"""
         cursor = self.conn.cursor()
 
-        # 初始化默认币种
-        for code, rate in DEFAULT_EXCHANGE_RATES.items():
-            currency_info = {
-                "CNY": ("人民币", "¥"),
-                "HKD": ("港币", "HK$"),
-                "USD": ("美元", "$"),
-                "EUR": ("欧元", "€"),
-                "GBP": ("英镑", "£"),
-                "JPY": ("日元", "¥"),
-            }
-            name, symbol = currency_info.get(code, (code, code))
+        # 初始化默认币种（统一从 default_currencies 读取，支持 config 覆盖）
+        for code, name, symbol, rate in get_all_default_currencies(self.config_path):
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO currencies (code, name, symbol, exchange_rate)
@@ -716,6 +701,25 @@ class SQLiteManager:
 
         # 多用户模式：不再创建全局默认账本，每位用户需在设置中创建自己的账本
 
+        self.conn.commit()
+
+    def ensure_currency_exists(self, code: str) -> None:
+        """若该币种不存在则插入（使用设置中的默认汇率），SQLite 使用 INSERT OR IGNORE。"""
+        if not (code and str(code).strip()):
+            return
+        code = str(code).strip().upper()
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id FROM currencies WHERE code = ? LIMIT 1", (code,))
+        if cursor.fetchone():
+            return
+        name, symbol, rate = get_currency_info(code, self.config_path)
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO currencies (code, name, symbol, exchange_rate)
+            VALUES (?, ?, ?, ?)
+        """,
+            (code, name, symbol, rate),
+        )
         self.conn.commit()
 
     def get_connection(self) -> sqlite3.Connection:

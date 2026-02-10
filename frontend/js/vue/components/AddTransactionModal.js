@@ -64,6 +64,12 @@ export default {
         ])
         categories.value = catData?.categories || []
         currencies.value = currData?.currencies || []
+        if (categories.value.length && !form.value.category) {
+          form.value.category = categories.value[0].name
+        }
+        if (currencies.value.length && !form.value.currency) {
+          form.value.currency = currencies.value[0].code || 'CNY'
+        }
       }
     })
     watch(() => form.value.ledger_id, async (ledgerId) => {

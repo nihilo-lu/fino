@@ -21,6 +21,7 @@ class DBManagerBase(Protocol):
 def get_db_manager(
     db_type: str = "sqlite",
     db_path: str = "investment.db",
+    config_path: Optional[str] = None,
     pg_host: str = "localhost",
     pg_port: int = 5432,
     pg_database: str = "investment",
@@ -52,6 +53,7 @@ def get_db_manager(
             user=pg_user,
             password=pg_password,
             sslmode=pg_sslmode,
+            config_path=config_path,
         )
     elif db_type == "d1":
         from utils.db_d1_manager import D1Manager
@@ -59,7 +61,8 @@ def get_db_manager(
             account_id=d1_account_id,
             database_id=d1_database_id,
             api_token=d1_api_token,
+            config_path=config_path,
         )
     else:
         from utils.db_sqlite_manager import SQLiteManager
-        return SQLiteManager(db_path)
+        return SQLiteManager(db_path=db_path, config_path=config_path)

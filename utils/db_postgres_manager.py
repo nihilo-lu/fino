@@ -7,15 +7,7 @@ import re
 import logging
 from typing import Optional, Any, List, Tuple
 
-# 默认汇率（相对于人民币）
-DEFAULT_EXCHANGE_RATES = {
-    'CNY': 1.0,      # 人民币
-    'HKD': 0.92,     # 港币
-    'USD': 7.25,     # 美元
-    'EUR': 7.85,     # 欧元
-    'GBP': 9.15,     # 英镑
-    'JPY': 0.048,    # 日元
-}
+from utils.default_currencies import get_all_default_currencies, get_currency_info
 
 
 def _convert_sql_sqlite_to_pg(sql: str) -> str:
@@ -147,6 +139,7 @@ class PostgreSQLManager:
         user: str = "postgres",
         password: str = "",
         sslmode: str = "prefer",
+        config_path: Optional[str] = None,
     ):
         try:
             import psycopg2
@@ -159,6 +152,7 @@ class PostgreSQLManager:
         self._user = user
         self._password = password
         self._sslmode = sslmode
+        self.config_path = config_path
         self.conn: Optional[Any] = None
         self._psycopg2 = psycopg2
         self._connect()
@@ -417,18 +411,9 @@ class PostgreSQLManager:
         self.conn.commit()
 
     def _init_default_data(self):
-        """初始化默认数据"""
+        """初始化默认数据，币种与汇率使用设置中的默认值"""
         cursor = self.conn.cursor()
-        currency_info = {
-            'CNY': ('人民币', '¥'),
-            'HKD': ('港币', 'HK$'),
-            'USD': ('美元', '$'),
-            'EUR': ('欧元', '€'),
-            'GBP': ('英镑', '£'),
-            'JPY': ('日元', '¥'),
-        }
-        for code, rate in DEFAULT_EXCHANGE_RATES.items():
-            name, symbol = currency_info.get(code, (code, code))
+        for code, name, symbol, rate in get_all_default_currencies(self.config_path):
             cursor.execute('''
                 INSERT INTO currencies (code, name, symbol, exchange_rate)
                 VALUES (%s, %s, %s, %s)
@@ -452,6 +437,23 @@ class PostgreSQLManager:
                     VALUES (%s, %s)
                 ''', (cat_name, cat_desc))
 
+        self.conn.commit()
+
+    def ensure_currency_exists(self, code: str) -> None:
+        """若该币种不存在则插入（使用设置中的默认汇率），PostgreSQL 使用 ON CONFLICT DO NOTHING。"""
+        if not (code and str(code).strip()):
+            return
+        code = str(code).strip().upper()
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id FROM currencies WHERE code = %s LIMIT 1", (code,))
+        if cursor.fetchone():
+            return
+        name, symbol, rate = get_currency_info(code, self.config_path)
+        cursor.execute('''
+            INSERT INTO currencies (code, name, symbol, exchange_rate)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (code) DO NOTHING
+        ''', (code, name, symbol, rate))
         self.conn.commit()
 
     def get_connection(self):

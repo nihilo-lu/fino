@@ -72,6 +72,7 @@ class Database:
         self.db_manager = get_db_manager(
             db_type=self.db_type,
             db_path=self.db_path,
+            config_path=config_path,
             pg_host=db_kwargs.get("pg_host") or cfg["postgresql"]["host"],
             pg_port=db_kwargs.get("pg_port") or cfg["postgresql"]["port"],
             pg_database=db_kwargs.get("pg_database") or cfg["postgresql"]["database"],

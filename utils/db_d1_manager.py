@@ -10,15 +10,7 @@ import urllib.request
 import urllib.error
 from typing import Optional, Any, List, Tuple
 
-# 默认汇率（相对于人民币）
-DEFAULT_EXCHANGE_RATES = {
-    "CNY": 1.0,
-    "HKD": 0.92,
-    "USD": 7.25,
-    "EUR": 7.85,
-    "GBP": 9.15,
-    "JPY": 0.048,
-}
+from utils.default_currencies import get_all_default_currencies, get_currency_info
 
 D1_API_BASE = "https://api.cloudflare.com/client/v4"
 
@@ -182,12 +174,14 @@ class D1Manager:
         account_id: str,
         database_id: str,
         api_token: str,
+        config_path: Optional[str] = None,
     ):
         if not account_id or not database_id or not api_token:
             raise ValueError("D1 需要 account_id、database_id 和 api_token")
         self._account_id = account_id
         self._database_id = database_id
         self._api_token = api_token
+        self.config_path = config_path
         self.conn: Optional[_D1Connection] = None
         self._connect()
         self._create_tables()
@@ -376,22 +370,14 @@ class D1Manager:
             pass
 
     def _init_default_data(self):
-        """初始化默认数据"""
-        # 检查是否已有 CNY
+        """初始化默认数据，币种与汇率使用设置中的默认值"""
         try:
             res = self._execute("SELECT id FROM currencies WHERE code = 'CNY'")
             if res.get("results"):
                 return
         except Exception:
             pass
-        for code, name, symbol, rate in [
-            ("CNY", "人民币", "¥", 1.0),
-            ("USD", "美元", "$", 7.25),
-            ("HKD", "港币", "HK$", 0.92),
-            ("EUR", "欧元", "€", 7.85),
-            ("GBP", "英镑", "£", 9.15),
-            ("JPY", "日元", "¥", 0.048),
-        ]:
+        for code, name, symbol, rate in get_all_default_currencies(self.config_path):
             try:
                 self._execute(
                     "INSERT OR IGNORE INTO currencies (code, name, symbol, exchange_rate) VALUES (?, ?, ?, ?)",
@@ -415,6 +401,26 @@ class D1Manager:
                 )
             except Exception:
                 pass
+
+    def ensure_currency_exists(self, code: str) -> None:
+        """若该币种不存在则插入（使用设置中的默认汇率），D1 使用 INSERT OR IGNORE。"""
+        if not (code and str(code).strip()):
+            return
+        code = str(code).strip().upper()
+        try:
+            res = self._execute("SELECT id FROM currencies WHERE code = ?", (code,))
+            if res.get("results"):
+                return
+        except Exception:
+            pass
+        name, symbol, rate = get_currency_info(code, self.config_path)
+        try:
+            self._execute(
+                "INSERT OR IGNORE INTO currencies (code, name, symbol, exchange_rate) VALUES (?, ?, ?, ?)",
+                (code, name, symbol, rate),
+            )
+        except Exception:
+            pass
 
     def get_connection(self) -> _D1Connection:
         """获取数据库连接"""

@@ -64,19 +64,53 @@ class TransactionCRUD:
                 )
                 r = cursor.fetchone()
                 category_id = r[0] if r else None
+            # 未传或未匹配到类别时：优先使用「其他」，否则使用第一个类别
+            if category_id is None:
+                cursor.execute(
+                    "SELECT id FROM categories WHERE name = ? LIMIT 1", ("其他",)
+                )
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                cursor.execute("SELECT id FROM categories ORDER BY id LIMIT 1")
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                logging.warning(
+                    "无法解析 category 为有效 id（未提供且数据库中无投资类别），添加交易失败"
+                )
+                return False
+
             curr = transaction.get("currency", "CNY")
             if isinstance(curr, int) or (
                 isinstance(curr, str) and (curr or "").isdigit()
             ):
                 currency_id = int(curr or 0)
             else:
+                code = (curr or "CNY").strip() or "CNY"
                 cursor.execute(
-                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (curr or "CNY",)
+                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (code,)
                 )
                 r = cursor.fetchone()
                 currency_id = r[0] if r else None
-            if category_id is None or currency_id is None:
-                logging.warning("无法解析 category 或 currency 为有效 id，添加交易失败")
+                # 币种不存在时由各数据库管理器按设置中的默认汇率插入（SQLite/PostgreSQL/D1 均支持）
+                if currency_id is None and code:
+                    ensure = getattr(
+                        self.db_manager, "ensure_currency_exists", None
+                    )
+                    if callable(ensure):
+                        ensure(code)
+                    cursor.execute(
+                        "SELECT id FROM currencies WHERE code = ? LIMIT 1",
+                        (code.upper(),),
+                    )
+                    r = cursor.fetchone()
+                    currency_id = r[0] if r else None
+            if currency_id is None:
+                logging.warning(
+                    "无法解析 currency 为有效 id（币种 %s 不存在），添加交易失败",
+                    curr,
+                )
                 return False
             currency_code = (
                 curr if isinstance(curr, str) and not (curr or "").isdigit() else None
@@ -326,19 +360,51 @@ class TransactionCRUD:
                 )
                 r = cursor.fetchone()
                 category_id = r[0] if r else None
+            if category_id is None:
+                cursor.execute(
+                    "SELECT id FROM categories WHERE name = ? LIMIT 1", ("其他",)
+                )
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                cursor.execute("SELECT id FROM categories ORDER BY id LIMIT 1")
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                logging.warning(
+                    "无法解析 category 为有效 id（未提供且数据库中无投资类别），更新交易失败"
+                )
+                return False
+
             curr = transaction.get("currency", "CNY")
             if isinstance(curr, int) or (
                 isinstance(curr, str) and (curr or "").isdigit()
             ):
                 currency_id = int(curr or 0)
             else:
+                code = (curr or "CNY").strip() or "CNY"
                 cursor.execute(
-                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (curr or "CNY",)
+                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (code,)
                 )
                 r = cursor.fetchone()
                 currency_id = r[0] if r else None
-            if category_id is None or currency_id is None:
-                logging.warning("无法解析 category 或 currency 为有效 id，更新交易失败")
+                if currency_id is None and code:
+                    ensure = getattr(
+                        self.db_manager, "ensure_currency_exists", None
+                    )
+                    if callable(ensure):
+                        ensure(code)
+                    cursor.execute(
+                        "SELECT id FROM currencies WHERE code = ? LIMIT 1",
+                        (code.upper(),),
+                    )
+                    r = cursor.fetchone()
+                    currency_id = r[0] if r else None
+            if currency_id is None:
+                logging.warning(
+                    "无法解析 currency 为有效 id（币种 %s 不存在），更新交易失败",
+                    curr,
+                )
                 return False
             currency_code = (
                 curr if isinstance(curr, str) and not (curr or "").isdigit() else None
@@ -1075,20 +1141,50 @@ class TransactionCRUD:
                 )
                 r = cursor.fetchone()
                 category_id = r[0] if r else None
+            if category_id is None:
+                cursor.execute(
+                    "SELECT id FROM categories WHERE name = ? LIMIT 1", ("其他",)
+                )
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                cursor.execute("SELECT id FROM categories ORDER BY id LIMIT 1")
+                r = cursor.fetchone()
+                category_id = r[0] if r else None
+            if category_id is None:
+                logging.warning(
+                    "无法解析 category 为有效 id（未提供且数据库中无投资类别），添加交易及资金明细失败"
+                )
+                return False
+
             curr = transaction.get("currency", "CNY")
             if isinstance(curr, int) or (
                 isinstance(curr, str) and (curr or "").isdigit()
             ):
                 currency_id = int(curr or 0)
             else:
+                code = (curr or "CNY").strip() or "CNY"
                 cursor.execute(
-                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (curr or "CNY",)
+                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (code,)
                 )
                 r = cursor.fetchone()
                 currency_id = r[0] if r else None
-            if category_id is None or currency_id is None:
+                if currency_id is None and code:
+                    ensure = getattr(
+                        self.db_manager, "ensure_currency_exists", None
+                    )
+                    if callable(ensure):
+                        ensure(code)
+                    cursor.execute(
+                        "SELECT id FROM currencies WHERE code = ? LIMIT 1",
+                        (code.upper(),),
+                    )
+                    r = cursor.fetchone()
+                    currency_id = r[0] if r else None
+            if currency_id is None:
                 logging.warning(
-                    "无法解析 category 或 currency 为有效 id，添加交易及资金明细失败"
+                    "无法解析 currency 为有效 id（币种 %s 不存在），添加交易及资金明细失败",
+                    curr,
                 )
                 return False
             curr_code = (

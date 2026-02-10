@@ -1,3 +1,12 @@
+# 可选：默认汇率（相对人民币），用于初始化币种表与「确保币种存在」逻辑，不配置则使用内置默认
+# default_exchange_rates:
+#   CNY: 1.0
+#   HKD: 0.92
+#   USD: 7.25
+#   EUR: 7.85
+#   GBP: 9.15
+#   JPY: 0.048
+
 database:
   type: sqlite
   sqlite:
