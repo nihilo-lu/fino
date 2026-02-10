@@ -45,7 +45,12 @@ cp conf/config.example.yaml conf/config.yaml
 python app.py
 ```
 
-服务默认运行在 `http://localhost:8086`
+服务默认运行在 `http://localhost:8087`
+
+> Windows PowerShell 可使用：
+>
+> - 复制配置：`Copy-Item conf\\config.example.yaml conf\\config.yaml`
+> - 启动：`python app.py`
 
 ### 配置说明
 
@@ -280,7 +285,99 @@ fino/
 
 ### 端口配置
 
-默认端口为 8086，可在 `app.py` 中修改 `app.run(port=...)`。
+默认端口为 8087，可在 `app.py` 中修改 `app.run(port=...)`。
+
+## 部署（Docker + Nginx，推荐）
+
+该方式实现“前后端分离式部署”：**Nginx 负责静态资源与 SPA 回退**，**后端仅提供 `/api/*`**。优点是静态资源可缓存/压缩，后端负载更低，也更易扩容。
+
+### 前置条件
+
+- Docker 与 Docker Compose（`docker compose`）
+
+### 目录准备（建议）
+
+在项目根目录准备以下目录/文件（没有就创建）：
+
+- `conf/config.yaml`：运行配置（由 `conf/config.example.yaml` 复制）
+- `data/`：持久化数据目录（SQLite 数据库建议放这里）
+- `uploads/`：用户头像等上传文件目录
+
+> 建议在 `conf/config.yaml` 中将 SQLite 路径改为：`/data/investment.db`，这样容器重启不会丢数据。
+
+示例（`conf/config.yaml`）：
+
+```yaml
+database:
+  type: sqlite
+  sqlite:
+    path: /data/investment.db
+```
+
+### 一键启动
+
+首次部署可先生成配置文件：
+
+```bash
+cp conf/config.example.yaml conf/config.yaml
+```
+
+Windows PowerShell：
+
+```bash
+Copy-Item conf\config.example.yaml conf\config.yaml
+```
+
+```bash
+docker compose up -d --build
+```
+
+启动后访问：
+
+- Web：`http://localhost/`
+- 健康检查：`http://localhost/api/health`
+
+### 停止与查看日志
+
+```bash
+docker compose down
+docker compose logs -f --tail=200
+```
+
+### 关键点说明
+
+- **后端 API-only**：Compose 会为后端设置 `FINO_API_ONLY=1`，此时 Flask 不再提供 `/`、`/frontend/*`、`/manifest.json`、`/sw.js`，这些由 Nginx 提供。
+- **配置可在线修改**：系统中部分“设置”接口会写回 `conf/config.yaml`，因此 Compose 将 `conf/` 以可写方式挂载到容器内。
+
+## 部署（仅 Docker，不使用 Nginx）
+
+如果你只想快速把服务跑起来（由 Flask 同时提供前端静态与 API），可以直接运行后端容器并映射端口：
+
+Linux / macOS（bash）：
+
+```bash
+docker build -t fino-backend .
+docker run --rm -p 8087:8087 \
+  -v "$(pwd)/conf:/app/conf" \
+  -v "$(pwd)/uploads:/app/uploads" \
+  -v "$(pwd)/data:/data" \
+  fino-backend
+```
+
+Windows（PowerShell / CMD）：
+
+```bash
+docker build -t fino-backend .
+docker run --rm -p 8087:8087 ^
+  -v "%cd%\\conf:/app/conf" ^
+  -v "%cd%\\uploads:/app/uploads" ^
+  -v "%cd%\\data:/data" ^
+  fino-backend
+```
+
+然后访问 `http://localhost:8087/`。
+
+> 说明：该方式适合内网/临时使用。生产环境更推荐使用 Nginx（见上）统一入口并托管静态资源。
 
 ## License
 

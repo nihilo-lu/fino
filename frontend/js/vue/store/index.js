@@ -1,7 +1,5 @@
 import { reactive, computed } from 'vue'
-import { apiFetch, apiGet, apiPost, apiDelete } from '../utils/api.js'
-
-const API_BASE = '/api'
+import { apiFetch, apiGet, apiPost, apiDelete, API_BASE } from '../utils/api.js'
 
 const state = reactive({
   user: null,

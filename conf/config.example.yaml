@@ -1,5 +1,9 @@
 # 配置文件模板 - 复制为 config.yaml 后修改
 
+# ========== 服务端（前后端分离时可启用 API 独立模式）==========
+server:
+  api_only: false   # true：仅提供 /api/*，不提供前端页面与静态资源（由 Nginx 等托管前端时使用）
+
 # ========== 数据库 ==========
 database:
   type: sqlite  # sqlite | postgresql | d1

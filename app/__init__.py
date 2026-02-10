@@ -56,10 +56,16 @@ def create_app(config_path: str | None = None) -> Flask:
     # Session 密钥（用于 Web 登录态）
     try:
         from utils.auth_config import load_config
-        cfg = load_config(config_path)
+        cfg = load_config(config_path) or {}
         app.config["SECRET_KEY"] = cfg.get("cookie", {}).get("key", "investment_tracker_secret")
+        # 前后端分离：API 独立模式（仅提供 /api/*，不提供前端与静态）
+        _api_only = os.environ.get("FINO_API_ONLY", "").strip().lower() in ("1", "true", "yes")
+        if not _api_only and isinstance(cfg.get("server"), dict):
+            _api_only = cfg["server"].get("api_only", False)
+        app.config["API_ONLY"] = bool(_api_only)
     except Exception:
         app.config["SECRET_KEY"] = "investment_tracker_secret"
+        app.config["API_ONLY"] = False
 
     # 2. 初始化扩展
     CORS(app, supports_credentials=True)

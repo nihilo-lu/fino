@@ -296,6 +296,8 @@ def save_plugin_center_setting():
 
 @main_bp.route("/")
 def index():
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
     return _render_index(_get_pwa_config())
 
 
@@ -308,6 +310,8 @@ def index():
 @main_bp.route("/settings")
 @main_bp.route("/api-docs")
 def spa_pages():
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
     return _render_index(_get_pwa_config())
 
 
@@ -336,6 +340,8 @@ def _render_index(pwa):
 @main_bp.route("/manifest.json")
 def serve_manifest():
     """PWA manifest，动态从配置生成"""
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
     pwa = _get_pwa_config()
     manifest = {
         "name": pwa.get("name", "投资追踪器"),
@@ -360,12 +366,16 @@ def serve_manifest():
 @main_bp.route("/sw.js")
 def serve_sw():
     """PWA Service Worker，根路径便于控制全站"""
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
     static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
     return send_from_directory(static_folder, "sw.js", mimetype="application/javascript")
 
 
 @main_bp.route("/frontend/<path:filename>")
 def serve_static(filename):
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
     static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
     return send_from_directory(static_folder, filename)
 

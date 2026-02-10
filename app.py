@@ -6,7 +6,7 @@
 启动方式:
     python app.py
 
-默认端口: 8085
+默认端口: 8087
 """
 
 import os
@@ -23,6 +23,6 @@ app = create_app(config_path=get_config_path())
 if __name__ == "__main__":
     print("=" * 60)
     print("  投资追踪器 API 服务器")
-    print("  地址: http://localhost:8085")
+    print("  地址: http://localhost:8087")
     print("=" * 60)
     app.run(host="0.0.0.0", port=8087, debug=True)

@@ -1,6 +1,6 @@
 class InvestmentTracker {
     constructor() {
-        this.apiBase = '/api';
+        this.apiBase = (typeof window !== 'undefined' && window.__API_BASE__) ? window.__API_BASE__ : '/api';
         this.user = null;
         this.ledgers = [];
         this.accounts = [];

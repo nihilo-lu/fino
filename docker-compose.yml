@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # API-only：由 Nginx 托管前端静态与 SPA 路由
+      - FINO_API_ONLY=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # 运行配置（部分设置会写回该文件，因此需要可写挂载）
+      - ./conf:/app/conf
+      # 上传目录（头像等）
+      - ./uploads:/app/uploads
+      # 数据目录（建议在 conf/config.yaml 中将 sqlite path 指向 /data/investment.db）
+      - ./data:/data
+    expose:
+      - "8087"
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+

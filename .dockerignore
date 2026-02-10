@@ -1,0 +1,21 @@
+.git
+.github
+.cursor
+.vscode
+
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.venv/
+venv/
+env/
+
+data/
+uploads/
+
+# 本地运行配置可能包含敏感信息
+conf/config.yaml
+
