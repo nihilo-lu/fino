@@ -1260,6 +1260,31 @@ body {
     margin-top: 20px;
 }
 
+.accounts-by-type {
+    margin-top: 20px;
+}
+
+.account-group {
+    margin-bottom: 24px;
+}
+
+.account-group:last-child {
+    margin-bottom: 0;
+}
+
+.account-group-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary, #64748b);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.account-group .items-list {
+    margin-top: 0;
+}
+
 .item-card {
     display: flex;
     align-items: center;

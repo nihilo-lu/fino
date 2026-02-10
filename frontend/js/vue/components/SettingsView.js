@@ -23,11 +23,24 @@ export default {
     const pwaSaving = ref(false)
     const newLedgerName = ref('')
     const newLedgerDesc = ref('')
+    const editingLedgerId = ref(null)
+    const editLedgerName = ref('')
+    const editLedgerDesc = ref('')
+    const editLedgerCostMethod = ref('FIFO')
     const accountLedgerId = ref('')
     const newAccountName = ref('')
-    const newAccountType = ref('股票')
-    const newAccountCurrency = ref('CNY')
+    const newAccountType = ref('资产')
     const settingsAccounts = ref([])
+    const editingAccountId = ref(null)
+    const editAccountName = ref('')
+    const editAccountType = ref('资产')
+    // 交易类别
+    const categoriesList = ref([])
+    const newCategoryName = ref('')
+    const newCategoryDesc = ref('')
+    const editingCategoryId = ref(null)
+    const editCategoryName = ref('')
+    const editCategoryDesc = ref('')
 
     // 用户资料
     const profileUsername = ref('')
@@ -89,6 +102,25 @@ export default {
     const displayAccounts = computed(() => {
       if (accountLedgerId.value === state.currentLedgerId) return state.accounts
       return settingsAccounts.value
+    })
+
+    const ACCOUNT_TYPE_ORDER = ['资产', '收入', '支出', '权益']
+    const accountsByType = computed(() => {
+      const list = displayAccounts.value || []
+      const map = new Map()
+      ACCOUNT_TYPE_ORDER.forEach(t => map.set(t, []))
+      list.forEach(acc => {
+        const t = acc.type || '其他'
+        if (!map.has(t)) map.set(t, [])
+        map.get(t).push(acc)
+      })
+      return ACCOUNT_TYPE_ORDER.map(type => ({ type, accounts: map.get(type) || [] }))
+        .concat(
+          Array.from(map.entries())
+            .filter(([type]) => !ACCOUNT_TYPE_ORDER.includes(type))
+            .map(([type, accounts]) => ({ type, accounts }))
+        )
+        .filter(g => g.accounts.length > 0)
     })
 
     const loadSettingsAccounts = async () => {
@@ -272,14 +304,85 @@ export default {
       const ok = await actions.createAccount(
         parseInt(accountLedgerId.value),
         newAccountName.value.trim(),
-        newAccountType.value,
-        newAccountCurrency.value
+        newAccountType.value
       )
       if (ok) {
         newAccountName.value = ''
-        await actions.fetchAccounts()
+        await loadSettingsAccounts()
+        await actions.fetchLedgers()
+        if (parseInt(accountLedgerId.value) === state.currentLedgerId) await actions.fetchAccounts()
+      }
+    }
+
+    const startEditLedger = (ledger) => {
+      editingLedgerId.value = ledger.id
+      editLedgerName.value = ledger.name
+      editLedgerDesc.value = ledger.description || ''
+      editLedgerCostMethod.value = ledger.cost_method || 'FIFO'
+    }
+    const cancelEditLedger = () => {
+      editingLedgerId.value = null
+      editLedgerName.value = ''
+      editLedgerDesc.value = ''
+      editLedgerCostMethod.value = 'FIFO'
+    }
+    const saveEditLedger = async () => {
+      if (!editLedgerName.value.trim()) {
+        actions.showToast('请输入账本名称', 'warning')
+        return
+      }
+      const ok = await actions.updateLedger(editingLedgerId.value, {
+        name: editLedgerName.value.trim(),
+        description: editLedgerDesc.value.trim(),
+        cost_method: editLedgerCostMethod.value
+      })
+      if (ok) {
+        cancelEditLedger()
         await actions.fetchLedgers()
       }
+    }
+
+    const loadCategories = async () => {
+      const data = await actions.fetchCategories()
+      categoriesList.value = data?.data?.categories ?? data?.categories ?? []
+    }
+    const handleCategorySubmit = async (e) => {
+      e.preventDefault()
+      if (!newCategoryName.value.trim()) {
+        actions.showToast('请输入类别名称', 'warning')
+        return
+      }
+      const ok = await actions.createCategory(newCategoryName.value.trim(), newCategoryDesc.value.trim())
+      if (ok) {
+        newCategoryName.value = ''
+        newCategoryDesc.value = ''
+        await loadCategories()
+      }
+    }
+    const startEditCategory = (cat) => {
+      editingCategoryId.value = cat.id
+      editCategoryName.value = cat.name
+      editCategoryDesc.value = cat.description || ''
+    }
+    const cancelEditCategory = () => {
+      editingCategoryId.value = null
+      editCategoryName.value = ''
+      editCategoryDesc.value = ''
+    }
+    const saveEditCategory = async () => {
+      if (!editCategoryName.value.trim()) {
+        actions.showToast('请输入类别名称', 'warning')
+        return
+      }
+      const ok = await actions.updateCategory(editingCategoryId.value, editCategoryName.value.trim(), editCategoryDesc.value.trim())
+      if (ok) {
+        cancelEditCategory()
+        await loadCategories()
+      }
+    }
+    const deleteCategory = async (id) => {
+      const ok = await actions.deleteCategory(id)
+      if (ok) await loadCategories()
     }
 
     const deleteLedger = async (id) => {
@@ -287,11 +390,43 @@ export default {
       if (ok) await actions.fetchLedgers()
     }
 
+    const startEditAccount = (account) => {
+      editingAccountId.value = account.id
+      editAccountName.value = account.name
+      editAccountType.value = account.type || '资产'
+    }
+    const cancelEditAccount = () => {
+      editingAccountId.value = null
+      editAccountName.value = ''
+      editAccountType.value = '资产'
+    }
+    const saveEditAccount = async () => {
+      if (!editAccountName.value.trim()) {
+        actions.showToast('请输入账户名称', 'warning')
+        return
+      }
+      const ok = await actions.updateAccount(editingAccountId.value, {
+        name: editAccountName.value.trim(),
+        type: editAccountType.value
+      })
+      if (ok) {
+        cancelEditAccount()
+        await loadSettingsAccounts()
+        await actions.fetchLedgers()
+        if (parseInt(accountLedgerId.value) === state.currentLedgerId) {
+          await actions.fetchAccounts()
+        }
+      }
+    }
+
     const deleteAccount = async (id) => {
       const ok = await actions.deleteAccount(id)
       if (ok) {
-        await actions.fetchAccounts()
+        await loadSettingsAccounts()
         await actions.fetchLedgers()
+        if (parseInt(accountLedgerId.value) === state.currentLedgerId) {
+          await actions.fetchAccounts()
+        }
       }
     }
 
@@ -424,6 +559,7 @@ export default {
       actions.fetchLedgers()
       accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
       loadSettingsAccounts()
+      loadCategories()
       try {
         await loadPlugins()
       } catch (e) {
@@ -447,6 +583,7 @@ export default {
       tabs,
       switchTab,
       displayAccounts,
+      accountsByType,
       state,
       actions,
       apiToken,
@@ -457,10 +594,34 @@ export default {
       handlePwaSave,
       newLedgerName,
       newLedgerDesc,
+      editingLedgerId,
+      editLedgerName,
+      editLedgerDesc,
+      editLedgerCostMethod,
+      startEditLedger,
+      cancelEditLedger,
+      saveEditLedger,
       accountLedgerId,
       newAccountName,
       newAccountType,
-      newAccountCurrency,
+      editingAccountId,
+      editAccountName,
+      editAccountType,
+      startEditAccount,
+      cancelEditAccount,
+      saveEditAccount,
+      categoriesList,
+      newCategoryName,
+      newCategoryDesc,
+      editingCategoryId,
+      editCategoryName,
+      editCategoryDesc,
+      handleCategorySubmit,
+      startEditCategory,
+      cancelEditCategory,
+      saveEditCategory,
+      deleteCategory,
+      loadCategories,
       generateToken,
       resetToken,
       copyToken,
@@ -665,24 +826,96 @@ export default {
             </button>
           </form>
           <div class="items-list">
-            <div v-for="ledger in state.ledgers" :key="ledger.id" class="item-card">
-              <div class="item-info">
-                <span class="item-name">{{ ledger.name }}</span>
-                <span class="item-desc">{{ ledger.description || '无描述' }} | {{ ledger.cost_method }}</span>
+            <template v-for="ledger in state.ledgers" :key="ledger.id">
+              <div v-if="editingLedgerId !== ledger.id" class="item-card">
+                <div class="item-info">
+                  <span class="item-name">{{ ledger.name }}</span>
+                  <span class="item-desc">{{ ledger.description || '无描述' }} | {{ ledger.cost_method }}</span>
+                </div>
+                <div class="item-actions">
+                  <button class="btn-icon" @click="startEditLedger(ledger)" title="编辑">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="btn-icon" @click="deleteLedger(ledger.id)" title="删除">
+                    <span class="material-icons">delete</span>
+                  </button>
+                </div>
               </div>
-              <div class="item-actions">
-                <button class="btn-icon" @click="deleteLedger(ledger.id)" title="删除">
-                  <span class="material-icons">delete</span>
-                </button>
+              <div v-else class="item-card item-card-edit">
+                <form @submit.prevent="saveEditLedger" class="inline-form" style="flex:1; gap:8px;">
+                  <div class="form-group">
+                    <input v-model="editLedgerName" type="text" placeholder="账本名称" required>
+                  </div>
+                  <div class="form-group">
+                    <input v-model="editLedgerDesc" type="text" placeholder="账本描述">
+                  </div>
+                  <div class="form-group">
+                    <select v-model="editLedgerCostMethod">
+                      <option value="FIFO">FIFO</option>
+                      <option value="WAC">WAC</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                  <button type="button" class="btn btn-outline btn-sm" @click="cancelEditLedger">取消</button>
+                </form>
               </div>
-            </div>
+            </template>
             <p v-if="state.ledgers.length === 0" class="empty-message">暂无账本</p>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="card-header"><h3>交易类别设置</h3></div>
+        <div class="card-body">
+          <form @submit="handleCategorySubmit" class="inline-form">
+            <div class="form-group">
+              <input v-model="newCategoryName" type="text" placeholder="类别名称">
+            </div>
+            <div class="form-group">
+              <input v-model="newCategoryDesc" type="text" placeholder="类别描述">
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <span class="material-icons">add</span>
+              添加类别
+            </button>
+          </form>
+          <div class="items-list">
+            <template v-for="cat in categoriesList" :key="cat.id">
+              <div v-if="editingCategoryId !== cat.id" class="item-card">
+                <div class="item-info">
+                  <span class="item-name">{{ cat.name }}</span>
+                  <span class="item-desc">{{ cat.description || '无描述' }}</span>
+                </div>
+                <div class="item-actions">
+                  <button class="btn-icon" @click="startEditCategory(cat)" title="编辑">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="btn-icon" @click="deleteCategory(cat.id)" title="删除">
+                    <span class="material-icons">delete</span>
+                  </button>
+                </div>
+              </div>
+              <div v-else class="item-card item-card-edit">
+                <form @submit.prevent="saveEditCategory" class="inline-form" style="flex:1; gap:8px;">
+                  <div class="form-group">
+                    <input v-model="editCategoryName" type="text" placeholder="类别名称" required>
+                  </div>
+                  <div class="form-group">
+                    <input v-model="editCategoryDesc" type="text" placeholder="类别描述">
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                  <button type="button" class="btn btn-outline btn-sm" @click="cancelEditCategory">取消</button>
+                </form>
+              </div>
+            </template>
+            <p v-if="categoriesList.length === 0" class="empty-message">暂无交易类别</p>
           </div>
         </div>
       </div>
       <div class="form-card">
         <div class="card-header"><h3>账户管理</h3></div>
         <div class="card-body">
+          <p class="form-hint" style="margin-bottom:12px;">支持添加收入、支出、权益、资产四类账户，无需设置币种。</p>
           <form @submit="handleAccountSubmit" class="inline-form">
             <div class="form-group">
               <select v-model="accountLedgerId">
@@ -695,19 +928,10 @@ export default {
             </div>
             <div class="form-group">
               <select v-model="newAccountType">
-                <option value="股票">股票</option>
-                <option value="基金">基金</option>
-                <option value="债券">债券</option>
-                <option value="期货">期货</option>
-                <option value="现金">现金</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <select v-model="newAccountCurrency">
-                <option value="CNY">CNY</option>
-                <option value="USD">USD</option>
-                <option value="HKD">HKD</option>
-                <option value="EUR">EUR</option>
+                <option value="资产">资产</option>
+                <option value="收入">收入</option>
+                <option value="支出">支出</option>
+                <option value="权益">权益</option>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">
@@ -715,18 +939,46 @@ export default {
               添加账户
             </button>
           </form>
-          <div class="items-list">
-            <div v-for="account in displayAccounts" :key="account.id" class="item-card">
-              <div class="item-info">
-                <span class="item-name">{{ account.name }}</span>
-                <span class="item-desc">{{ account.type }} | {{ account.currency }}</span>
+          <div class="accounts-by-type">
+            <template v-for="group in accountsByType" :key="group.type">
+              <div class="account-group">
+                <div class="account-group-title">{{ group.type }}</div>
+                <div class="items-list">
+                  <template v-for="account in group.accounts" :key="account.id">
+                    <div v-if="editingAccountId !== account.id" class="item-card">
+                      <div class="item-info">
+                        <span class="item-name">{{ account.name }}</span>
+                      </div>
+                      <div class="item-actions">
+                        <button class="btn-icon" @click="startEditAccount(account)" title="编辑">
+                          <span class="material-icons">edit</span>
+                        </button>
+                        <button class="btn-icon" @click="deleteAccount(account.id)" title="删除">
+                          <span class="material-icons">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div v-else class="item-card item-card-edit">
+                      <form @submit.prevent="saveEditAccount" class="inline-form" style="flex:1; gap:8px;">
+                        <div class="form-group">
+                          <input v-model="editAccountName" type="text" placeholder="账户名称" required>
+                        </div>
+                          <div class="form-group">
+                            <select v-model="editAccountType">
+                              <option value="资产">资产</option>
+                              <option value="收入">收入</option>
+                              <option value="支出">支出</option>
+                              <option value="权益">权益</option>
+                            </select>
+                          </div>
+                        <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                        <button type="button" class="btn btn-outline btn-sm" @click="cancelEditAccount">取消</button>
+                      </form>
+                    </div>
+                  </template>
+                </div>
               </div>
-              <div class="item-actions">
-                <button class="btn-icon" @click="deleteAccount(account.id)" title="删除">
-                  <span class="material-icons">delete</span>
-                </button>
-              </div>
-            </div>
+            </template>
             <p v-if="displayAccounts.length === 0" class="empty-message">暂无账户</p>
           </div>
         </div>

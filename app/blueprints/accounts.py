@@ -34,7 +34,8 @@ def create_account():
     ledger_id = data.get("ledger_id")
     name = data.get("name")
     acc_type = data.get("type")
-    currency = data.get("currency", "CNY")
+    # 收入、支出、权益、资产 类账户不需要设置币种，默认 CNY
+    currency = data.get("currency") or "CNY"
     description = data.get("description", "")
 
     if not all([ledger_id, name, acc_type]):
@@ -47,7 +48,34 @@ def create_account():
             return api_success(message="账户创建成功")
         return api_error("创建账户失败，请检查币种是否存在（如 CNY）", 500)
     except Exception as e:
+        err_msg = str(e)
+        if "UNIQUE constraint" in err_msg or "unique constraint" in err_msg or "duplicate key" in err_msg.lower():
+            if "ledger_id" in err_msg and "name" in err_msg:
+                return api_error("该账本下已存在同名账户，请使用其他名称", 400)
         logger.error(f"Create account error: {e}", exc_info=True)
+        return api_error(err_msg, 500)
+
+
+@accounts_bp.route("/accounts/<int:account_id>", methods=["PUT"])
+def update_account(account_id):
+    data = request.get_json() or {}
+    name = data.get("name")
+    acc_type = data.get("type")
+    currency = data.get("currency")  # 可选，前端不传则保持原币种
+    description = data.get("description", "")
+
+    if not all([name, acc_type]):
+        return api_error("账户名称和类型为必填", 400)
+
+    try:
+        database = get_db()
+        ok = database.update_account(account_id, name, acc_type, currency, description)
+        if ok:
+            return api_success(message="账户更新成功")
+        # update_account 返回 False：账户不存在、同名冲突或币种无效等
+        return api_error("更新失败，账户不存在、同名冲突或币种无效", 400)
+    except Exception as e:
+        logger.error(f"Update account error: {e}", exc_info=True)
         return api_error(str(e), 500)
 
 

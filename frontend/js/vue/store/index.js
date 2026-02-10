@@ -360,6 +360,47 @@ const actions = {
     return parseJson(response)
   },
 
+  async createCategory(name, description) {
+    const response = await apiFetch(`${API_BASE}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: (name || '').trim(), description: (description || '').trim() })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('类别创建成功', 'success')
+      return true
+    }
+    showToast(data?.error || '创建失败', 'error')
+    return false
+  },
+
+  async updateCategory(id, name, description) {
+    const response = await apiFetch(`${API_BASE}/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: (name || '').trim(), description: (description || '').trim() })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('类别更新成功', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return false
+  },
+
+  async deleteCategory(id) {
+    const response = await apiFetch(`${API_BASE}/categories/${id}`, { method: 'DELETE' })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('类别删除成功', 'success')
+      return true
+    }
+    showToast(data?.error || '删除失败', 'error')
+    return false
+  },
+
   async fetchCurrencies() {
     const response = await apiFetch(`${API_BASE}/currencies`)
     return parseJson(response)
@@ -868,6 +909,26 @@ const actions = {
     return false
   },
 
+  async updateLedger(id, { name, description, cost_method }) {
+    const response = await apiFetch(`${API_BASE}/ledgers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: state.user?.username,
+        name,
+        description: description ?? '',
+        cost_method: cost_method ?? 'FIFO'
+      })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('账本更新成功', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return false
+  },
+
   async deleteLedger(id) {
     if (!confirm('确定要删除这个账本吗？所有相关数据将被删除。')) return false
     const response = await apiFetch(`${API_BASE}/ledgers/${id}?username=${state.user?.username}`, { method: 'DELETE' })
@@ -881,10 +942,12 @@ const actions = {
   },
 
   async createAccount(ledgerId, name, type, currency) {
+    const body = { ledger_id: ledgerId, name, type }
+    if (currency != null && currency !== '') body.currency = currency
     const response = await apiFetch(`${API_BASE}/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ledger_id: ledgerId, name, type, currency })
+      body: JSON.stringify(body)
     })
     const data = await parseJson(response)
     if (response.ok && data?.success) {
@@ -892,6 +955,27 @@ const actions = {
       return true
     }
     showToast(data?.error || '创建失败', 'error')
+    return false
+  },
+
+  async updateAccount(id, { name, type, currency, description }) {
+    const body = {}
+    if (name != null) body.name = name
+    if (type != null) body.type = type
+    if (currency != null && currency !== '') body.currency = currency
+    if (description != null) body.description = description
+
+    const response = await apiFetch(`${API_BASE}/accounts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('账户更新成功', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
     return false
   },
 

@@ -50,6 +50,30 @@ def create_ledger():
         return api_error(str(e), 500)
 
 
+@ledgers_bp.route("/ledgers/<int:ledger_id>", methods=["PUT"])
+def update_ledger(ledger_id):
+    data = request.get_json()
+    username = data.get("username")
+    name = data.get("name")
+    description = data.get("description", "")
+    cost_method = data.get("cost_method", "FIFO")
+
+    if not username or not name:
+        return api_error("用户名和账本名称为必填", 400)
+
+    try:
+        database = get_db()
+        result = database.update_ledger(
+            ledger_id, name, description, cost_method, owner_username=username
+        )
+        if result:
+            return api_success(message="账本更新成功")
+        return api_error("更新失败，账本不存在或无权限", 404)
+    except Exception as e:
+        logger.error(f"Update ledger error: {e}")
+        return api_error(str(e), 500)
+
+
 @ledgers_bp.route("/ledgers/<int:ledger_id>", methods=["DELETE"])
 def delete_ledger(ledger_id):
     username = request.args.get("username")

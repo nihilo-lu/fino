@@ -343,24 +343,30 @@ class Database:
         account_id: int,
         name: str,
         acc_type: str,
-        currency: str = "CNY",
+        currency: Optional[str] = None,
         description: str = "",
     ) -> bool:
-        """更新账户信息"""
+        """更新账户信息
+
+        注意：
+            - 若 currency 为空/None，则保留原有币种不变；
+            - 若 currency 提供为币种代码（如 'CNY'），则会更新对应的 currency_id。
+        """
         try:
             account_id = int(account_id)
             cursor = self.conn.cursor()
 
-            # 先获取当前账户信息
+            # 先获取当前账户信息（包含原有币种）
             cursor.execute(
-                "SELECT ledger_id, name FROM accounts WHERE id = ?", (account_id,)
+                "SELECT ledger_id, name, currency_id FROM accounts WHERE id = ?",
+                (account_id,),
             )
             account_info = cursor.fetchone()
             if not account_info:
                 logging.warning(f"账户 {account_id} 不存在")
                 return False
 
-            ledger_id, old_name = account_info
+            ledger_id, old_name, old_currency_id = account_info
 
             # 如果名称改变，检查新名称是否与同一账本下的其他账户冲突
             if name != old_name:
@@ -375,13 +381,17 @@ class Database:
                     logging.error(f"账户名称 '{name}' 在同一账本下已存在")
                     return False
 
-            # 解析币种代码为 currency_id
-            cursor.execute("SELECT id FROM currencies WHERE code = ?", (currency,))
-            curr_row = cursor.fetchone()
-            currency_id = curr_row[0] if curr_row else None
-            if currency_id is None:
-                logging.warning(f"币种 '{currency}' 不存在，更新账户失败")
-                return False
+            # 解析币种代码为 currency_id；若未提供则沿用旧值
+            if currency is None or str(currency).strip() == "":
+                currency_id = old_currency_id
+            else:
+                cursor.execute("SELECT id FROM currencies WHERE code = ?", (currency,))
+                curr_row = cursor.fetchone()
+                currency_id = curr_row[0] if curr_row else None
+                if currency_id is None:
+                    logging.warning(f"币种 '{currency}' 不存在，更新账户失败")
+                    return False
+
             # 执行更新
             cursor.execute(
                 """
@@ -471,6 +481,15 @@ class Database:
                 "DELETE FROM fund_transaction_entries WHERE account_id = ?",
                 (account_id,),
             ).rowcount
+            # 历史快照表也引用 account_id，必须一并删除（若表存在）
+            for table in ("position_history", "account_balance_history"):
+                try:
+                    cursor.execute(
+                        f"DELETE FROM {table} WHERE account_id = ?", (account_id,)
+                    )
+                except Exception as tbe:
+                    if "no such table" not in str(tbe).lower() and "does not exist" not in str(tbe).lower():
+                        raise
 
             # 最后删除账户本身
             deleted_accounts = cursor.execute(
