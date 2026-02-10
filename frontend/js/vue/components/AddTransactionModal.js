@@ -4,7 +4,8 @@ import { useStore } from '../store/index.js'
 export default {
   name: 'AddTransactionModal',
   props: {
-    show: Boolean
+    show: Boolean,
+    editTransaction: { type: Object, default: null }
   },
   emits: ['close', 'submitted'],
   setup(props, { emit }) {
@@ -40,35 +41,47 @@ export default {
     })
 
     watch(amount, (v) => { form.value.amount = v })
-    watch(() => props.show, async (v) => {
+    watch(() => [props.show, props.editTransaction], async ([v, edit]) => {
       if (v) {
         const ledgerId = state.currentLedgerId || state.ledgers[0]?.id || ''
         const accounts = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : state.accounts
         modalAccounts.value = accounts
-        form.value.ledger_id = ledgerId
-        form.value.account_id = state.currentAccountId || accounts[0]?.id || ''
-        form.value.date = new Date().toISOString().split('T')[0]
-        form.value.type = ''
-        form.value.code = ''
-        form.value.name = ''
-        form.value.price = ''
-        form.value.quantity = ''
-        form.value.amount = ''
-        form.value.fee = 0
-        form.value.category = ''
-        form.value.currency = 'CNY'
-        form.value.notes = ''
         const [catData, currData] = await Promise.all([
           actions.fetchCategories(),
           actions.fetchCurrencies()
         ])
         categories.value = catData?.categories || []
         currencies.value = currData?.currencies || []
-        if (categories.value.length && !form.value.category) {
-          form.value.category = categories.value[0].name
-        }
-        if (currencies.value.length && !form.value.currency) {
-          form.value.currency = currencies.value[0].code || 'CNY'
+        if (edit?.id) {
+          form.value.ledger_id = edit.ledger_id ?? ledgerId
+          form.value.account_id = edit.account_id ?? state.currentAccountId ?? accounts[0]?.id ?? ''
+          form.value.date = edit.date || new Date().toISOString().split('T')[0]
+          form.value.type = edit.type || ''
+          form.value.code = edit.code || ''
+          form.value.name = edit.name || ''
+          form.value.price = edit.price != null ? String(edit.price) : ''
+          form.value.quantity = edit.quantity != null ? String(edit.quantity) : ''
+          form.value.amount = edit.amount != null ? String(edit.amount) : ''
+          form.value.fee = edit.fee ?? 0
+          form.value.category = edit.category ?? ''
+          form.value.currency = edit.currency ?? 'CNY'
+          form.value.notes = edit.notes ?? ''
+        } else {
+          form.value.ledger_id = ledgerId
+          form.value.account_id = state.currentAccountId || accounts[0]?.id || ''
+          form.value.date = new Date().toISOString().split('T')[0]
+          form.value.type = ''
+          form.value.code = ''
+          form.value.name = ''
+          form.value.price = ''
+          form.value.quantity = ''
+          form.value.amount = ''
+          form.value.fee = 0
+          form.value.category = ''
+          form.value.currency = 'CNY'
+          form.value.notes = ''
+          if (categories.value.length) form.value.category = categories.value[0].name
+          if (currencies.value.length) form.value.currency = currencies.value[0].code || 'CNY'
         }
       }
     })
@@ -76,10 +89,9 @@ export default {
       e.preventDefault()
       loading.value = true
       try {
-        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id
-        const success = await actions.createTransaction({
+        const payload = {
           ...form.value,
-          ledger_id: parseInt(ledgerId),
+          ledger_id: parseInt(form.value.ledger_id) || state.currentLedgerId || state.ledgers[0]?.id,
           account_id: parseInt(form.value.account_id),
           price: parseFloat(form.value.price),
           quantity: parseFloat(form.value.quantity),
@@ -88,7 +100,11 @@ export default {
           category: form.value.category || null,
           currency: form.value.currency || 'CNY',
           notes: form.value.notes || ''
-        })
+        }
+        const isEdit = props.editTransaction?.id
+        const success = isEdit
+          ? await actions.updateTransaction(props.editTransaction.id, payload)
+          : await actions.createTransaction(payload)
         if (success) {
           emit('close')
           emit('submitted')
@@ -113,7 +129,7 @@ export default {
     <div :class="['modal', { active: show }]">
       <div class="modal-content modal-content-wide">
         <div class="modal-header">
-          <h3>添加交易记录</h3>
+          <h3>{{ editTransaction?.id ? '编辑交易明细' : '添加交易明细' }}</h3>
           <button class="modal-close" @click="$emit('close')">
             <span class="material-icons">close</span>
           </button>

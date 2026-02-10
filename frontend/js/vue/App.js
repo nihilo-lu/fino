@@ -8,7 +8,6 @@ import LedgerSelectPage from './components/LedgerSelectPage.js'
 import Sidebar from './components/Sidebar.js'
 import Header from './components/Header.js'
 import DashboardView from './components/DashboardView.js'
-import PositionsView from './components/PositionsView.js'
 import TransactionsView from './components/TransactionsView.js'
 import FundsView from './components/FundsView.js'
 import AnalysisView from './components/AnalysisView.js'
@@ -22,8 +21,7 @@ import AiChatWindow from './components/AiChatWindow.js'
 
 const PAGE_TITLES = {
   dashboard: '仪表盘',
-  positions: '持仓管理',
-  transactions: '交易记录',
+  transactions: '交易明细',
   funds: '资金明细',
   analysis: '收益分析',
   'cloud-storage': '网盘',
@@ -33,8 +31,7 @@ const PAGE_TITLES = {
 
 const NAV_ITEMS_BASE = [
   { id: 'dashboard', label: '仪表盘', icon: 'dashboard' },
-  { id: 'positions', label: '持仓管理', icon: 'account_balance' },
-  { id: 'transactions', label: '交易记录', icon: 'receipt_long' },
+  { id: 'transactions', label: '交易明细', icon: 'receipt_long' },
   { id: 'funds', label: '资金明细', icon: 'payments' },
   { id: 'analysis', label: '收益分析', icon: 'analytics' },
   { id: 'api-docs', label: 'API 文档', icon: 'code' },
@@ -50,7 +47,6 @@ export default {
     Sidebar,
     Header,
     DashboardView,
-    PositionsView,
     TransactionsView,
     FundsView,
     AnalysisView,
@@ -68,6 +64,7 @@ export default {
     const currentPage = ref('dashboard')
     const sidebarCollapsed = ref(false)
     const showFundModal = ref(false)
+    const editingFund = ref(null)
     const fundsRefreshTrigger = ref(0)
     const showAiChat = ref(false)
     const loginError = ref('')
@@ -150,12 +147,27 @@ export default {
         actions.showToast('请先选择账本', 'warning')
         return
       }
+      editingFund.value = null
       showFundModal.value = true
+    }
+
+    const handleEditFund = async (fundId) => {
+      const data = await actions.fetchFundTransaction(fundId)
+      if (data) {
+        editingFund.value = data
+        showFundModal.value = true
+      }
     }
 
     const handleFundSubmitted = () => {
       showFundModal.value = false
+      editingFund.value = null
       fundsRefreshTrigger.value++
+    }
+
+    const handleFundModalClose = () => {
+      showFundModal.value = false
+      editingFund.value = null
     }
 
     const refreshFundsList = () => {
@@ -193,6 +205,7 @@ export default {
       currentPage,
       sidebarCollapsed,
       showFundModal,
+      editingFund,
       showAiChat,
       pageTitle,
       userName,
@@ -205,7 +218,9 @@ export default {
       handleSwitchLedger,
       navigateTo,
       handleShowFundModal,
+      handleEditFund,
       handleFundSubmitted,
+      handleFundModalClose,
       refreshFundsList,
       fundsRefreshTrigger,
       loginError,
@@ -262,10 +277,6 @@ export default {
               :class="['view', { active: currentPage === 'dashboard' }]"
               @navigate="navigateTo"
             />
-            <PositionsView
-              v-show="currentPage === 'positions'"
-              :class="['view', { active: currentPage === 'positions' }]"
-            />
             <TransactionsView
               v-show="currentPage === 'transactions'"
               :class="['view', { active: currentPage === 'transactions' }]"
@@ -276,6 +287,7 @@ export default {
               :class="['view', { active: currentPage === 'funds' }]"
               :refresh-trigger="fundsRefreshTrigger"
               @show-add-fund="handleShowFundModal"
+              @edit-fund="handleEditFund"
             />
             <AnalysisView
               v-show="currentPage === 'analysis'"
@@ -302,7 +314,8 @@ export default {
       <Toast />
       <FundModal
         :show="showFundModal"
-        @close="showFundModal = false"
+        :edit-fund="editingFund"
+        @close="handleFundModalClose"
         @submitted="handleFundSubmitted"
       />
       <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />

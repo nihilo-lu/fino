@@ -90,7 +90,70 @@ def create_transaction():
         return api_error("添加交易记录失败", 500)
     except Exception as e:
         logger.error(f"Create transaction error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)
+
+
+@transactions_bp.route("/transactions/<int:transaction_id>", methods=["GET"])
+def get_transaction(transaction_id):
+    try:
+        database = get_db()
+        transaction = database.get_transaction_by_id(transaction_id)
+        if not transaction:
+            return api_error("交易不存在", 404)
+        return api_success(data=transaction)
+    except Exception as e:
+        logger.error(f"Get transaction error: {e}")
+        return api_error(str(e), 500)
+
+
+@transactions_bp.route("/transactions/<int:transaction_id>", methods=["PUT"])
+def update_transaction(transaction_id):
+    data = request.get_json()
+    if not data:
+        return api_error("请求体为空", 400)
+    required_fields = ["ledger_id", "account_id", "type", "code", "name", "date"]
+    if not all(data.get(f) for f in required_fields):
+        return api_error("缺少必填字段", 400)
+    try:
+        database = get_db()
+        transaction = {
+            "ledger_id": data.get("ledger_id"),
+            "account_id": data.get("account_id"),
+            "type": data.get("type"),
+            "code": data.get("code"),
+            "name": data.get("name"),
+            "date": data.get("date"),
+            "price": data.get("price"),
+            "quantity": data.get("quantity"),
+            "amount": data.get("amount"),
+            "fee": data.get("fee", 0),
+            "category": data.get("category"),
+            "currency": data.get("currency", "CNY"),
+            "notes": data.get("notes", ""),
+        }
+        result = database.update_transaction(transaction_id, transaction)
+        if result:
+            return api_success(message="更新成功")
+        return api_error("更新失败", 404)
+    except Exception as e:
+        logger.error(f"Update transaction error: {e}")
+        return api_error(str(e), 500)
+
+
+@transactions_bp.route("/transactions/batch-delete", methods=["POST"])
+def batch_delete_transactions():
+    data = request.get_json() or {}
+    ids = data.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return api_error("请提供 ids 数组", 400)
+    try:
+        database = get_db()
+        for i, tid in enumerate(ids):
+            database.delete_transaction(int(tid), rebuild_positions=(i == len(ids) - 1))
+        return api_success(message="删除成功")
+    except Exception as e:
+        logger.error(f"Batch delete transactions error: {e}")
+        return api_error(str(e), 500)
 
 
 @transactions_bp.route("/transactions/<int:transaction_id>", methods=["DELETE"])
@@ -103,4 +166,4 @@ def delete_transaction(transaction_id):
         return api_error("删除失败", 404)
     except Exception as e:
         logger.error(f"Delete transaction error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)

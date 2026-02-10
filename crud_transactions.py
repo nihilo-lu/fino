@@ -1198,6 +1198,136 @@ class TransactionCRUD:
             logging.error(f"获取账户变动明细总数失败: {e}")
             return 0
 
+    def update_fund_transaction(
+        self, fund_trans_id: int, fund_trans: Dict, analytics
+    ) -> bool:
+        """更新资金明细（仅允许无关联交易的本金投入/撤出/收入/支出/内转）。"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT transaction_id FROM fund_transactions WHERE id = ?",
+                (fund_trans_id,),
+            )
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                raise ValueError("开仓/平仓关联的资金明细请到交易明细中编辑")
+
+            def _resolve_currency(cursor, curr):
+                if curr is None or curr == "":
+                    curr = "CNY"
+                if isinstance(curr, int) or (
+                    isinstance(curr, str) and (curr or "").isdigit()
+                ):
+                    cid = int(curr or 0)
+                    r = cursor.execute(
+                        "SELECT id, code FROM currencies WHERE id = ? LIMIT 1",
+                        (cid,),
+                    ).fetchone()
+                    return (r[0], r[1]) if r else (None, None)
+                cursor.execute(
+                    "SELECT id, code FROM currencies WHERE code = ? LIMIT 1",
+                    (curr or "CNY",),
+                )
+                r = cursor.fetchone()
+                return (r[0], r[1]) if r else (None, None)
+
+            entries = fund_trans.get("entries", [])
+            if not entries:
+                raise ValueError("必须提供 entries")
+            first_curr = entries[0].get("currency", fund_trans.get("currency", "CNY"))
+            currency_id, _ = _resolve_currency(cursor, first_curr)
+            if currency_id is None:
+                raise ValueError("无法解析币种")
+
+            cursor.execute(
+                """
+                UPDATE fund_transactions
+                SET date = ?, type = ?, currency_id = ?, notes = ?
+                WHERE id = ?
+                """,
+                (
+                    fund_trans["date"],
+                    fund_trans["type"],
+                    currency_id,
+                    fund_trans.get("notes", ""),
+                    fund_trans_id,
+                ),
+            )
+            cursor.execute(
+                "DELETE FROM fund_transaction_entries WHERE fund_transaction_id = ?",
+                (fund_trans_id,),
+            )
+
+            fund_date = fund_trans.get("date")
+            debit_cny = 0.0
+            credit_cny = 0.0
+            entries_with_cny = []
+            for entry in entries:
+                entry_curr = entry.get("currency", fund_trans.get("currency", "CNY"))
+                ent_currency_id, curr_code = _resolve_currency(cursor, entry_curr)
+                if ent_currency_id is None:
+                    raise ValueError(f"分录币种无法解析: {entry_curr}")
+                amount = entry["amount"]
+                if fund_date:
+                    amount_cny = analytics.convert_to_cny_at_date(
+                        amount, curr_code, fund_date
+                    )
+                else:
+                    amount_cny = analytics.convert_to_cny(amount, curr_code)
+                if entry["side"] == "debit":
+                    debit_cny += amount_cny
+                else:
+                    credit_cny += amount_cny
+                entries_with_cny.append(
+                    (
+                        entry["account_id"],
+                        entry["side"],
+                        amount,
+                        amount_cny,
+                        entry.get("subject_type", "cash"),
+                        ent_currency_id,
+                    )
+                )
+
+            if abs(debit_cny - credit_cny) > 0.01:
+                raise ValueError(
+                    f"借贷不平衡（按人民币折算）：借方 {debit_cny:.2f}，贷方 {credit_cny:.2f}"
+                )
+
+            for (
+                account_id,
+                side,
+                amount,
+                amount_cny,
+                subject_type,
+                ent_currency_id,
+            ) in entries_with_cny:
+                cursor.execute(
+                    """
+                    INSERT INTO fund_transaction_entries
+                    (fund_transaction_id, account_id, side, amount, amount_cny, currency_id, subject_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        fund_trans_id,
+                        account_id,
+                        side,
+                        amount,
+                        amount_cny,
+                        ent_currency_id,
+                        subject_type,
+                    ),
+                )
+
+            self.conn.commit()
+            return True
+        except ValueError:
+            raise
+        except Exception as e:
+            logging.error(f"更新资金明细失败: {e}")
+            self.conn.rollback()
+            return False
+
     def delete_fund_transaction(self, fund_trans_id: int) -> bool:
         """删除资金明细记录。若该资金明细关联交易记录（开仓/平仓），则一并删除交易及同批其他资金明细。
 

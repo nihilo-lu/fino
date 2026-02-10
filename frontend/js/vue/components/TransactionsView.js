@@ -40,15 +40,53 @@ export default {
     const goToPage = (p) => { page.value = p }
 
     const showAddModal = ref(false)
+    const editingTransaction = ref(null)
+    const selectedIds = ref([])
+
     const handleAddSubmitted = () => {
       showAddModal.value = false
+      editingTransaction.value = null
+      load()
+      emit('transaction-changed')
+    }
+    const handleCloseModal = () => {
+      showAddModal.value = false
+      editingTransaction.value = null
+    }
+
+    const onDeleteSuccess = () => {
+      selectedIds.value = []
       load()
       emit('transaction-changed')
     }
 
-    const onDeleteSuccess = () => {
-      load()
-      emit('transaction-changed')
+    const toggleSelect = (id) => {
+      const idx = selectedIds.value.indexOf(id)
+      if (idx === -1) selectedIds.value = [...selectedIds.value, id]
+      else selectedIds.value = selectedIds.value.filter((x) => x !== id)
+    }
+    const isSelected = (id) => selectedIds.value.includes(id)
+    const selectAllOnPage = () => {
+      if (selectedIds.value.length === transactions.value.length) {
+        selectedIds.value = []
+      } else {
+        selectedIds.value = transactions.value.map((t) => t.id)
+      }
+    }
+    const allSelectedOnPage = () => transactions.value.length > 0 && selectedIds.value.length === transactions.value.length
+
+    const batchDelete = async () => {
+      if (!selectedIds.value.length) return
+      if (!confirm(`确定要删除所选 ${selectedIds.value.length} 条交易明细吗？`)) return
+      await actions.deleteTransactions(selectedIds.value, onDeleteSuccess)
+    }
+
+    const editTransaction = async (t) => {
+      const full = await actions.fetchTransaction(t.id)
+      if (full) {
+        editingTransaction.value = full
+        showAddModal.value = true
+      }
     }
 
     return {
@@ -65,9 +103,18 @@ export default {
       goToPage,
       load,
       showAddModal,
-      showAdd: () => { showAddModal.value = true },
+      editingTransaction,
+      selectedIds,
+      showAdd: () => { editingTransaction.value = null; showAddModal.value = true },
       handleAddSubmitted,
-      deleteTransaction: (id) => actions.deleteTransaction(id, onDeleteSuccess)
+      handleCloseModal,
+      deleteTransaction: (id) => actions.deleteTransaction(id, onDeleteSuccess),
+      toggleSelect,
+      isSelected,
+      selectAllOnPage,
+      allSelectedOnPage,
+      batchDelete,
+      editTransaction
     }
   },
   template: `
@@ -89,6 +136,10 @@ export default {
           </button>
         </div>
         <div class="toolbar-right">
+          <button class="btn btn-danger" @click="batchDelete" :disabled="!selectedIds.length">
+            <span class="material-icons">delete_sweep</span>
+            批量删除 ({{ selectedIds.length }})
+          </button>
           <button class="btn btn-success" @click="showAdd">
             <span class="material-icons">add</span>
             添加交易
@@ -101,6 +152,9 @@ export default {
             <table class="data-table">
               <thead>
                 <tr>
+                  <th class="col-checkbox">
+                    <input type="checkbox" :checked="allSelectedOnPage()" @change="selectAllOnPage" title="全选本页">
+                  </th>
                   <th>日期</th>
                   <th>类型</th>
                   <th>代码</th>
@@ -115,9 +169,12 @@ export default {
               </thead>
               <tbody>
                 <tr v-if="transactions.length === 0">
-                  <td colspan="10" class="empty-message">暂无交易记录</td>
+                  <td colspan="11" class="empty-message">暂无交易明细</td>
                 </tr>
                 <tr v-for="t in transactions" :key="t.id">
+                  <td class="col-checkbox">
+                    <input type="checkbox" :checked="isSelected(t.id)" @change="toggleSelect(t.id)">
+                  </td>
                   <td>{{ t.date }}</td>
                   <td><span :class="['badge', 'badge-' + (t.type === '开仓' ? 'success' : t.type === '平仓' ? 'danger' : 'info')]">{{ t.type }}</span></td>
                   <td>{{ t.code }}</td>
@@ -128,6 +185,9 @@ export default {
                   <td>{{ formatCurrency(t.amount) }}</td>
                   <td>{{ formatCurrency(t.fee) }}</td>
                   <td class="actions">
+                    <button class="btn-icon" @click="editTransaction(t)" title="编辑">
+                      <span class="material-icons">edit</span>
+                    </button>
                     <button class="btn-icon" @click="deleteTransaction(t.id)" title="删除">
                       <span class="material-icons">delete</span>
                     </button>
@@ -150,7 +210,8 @@ export default {
       </div>
       <AddTransactionModal
         :show="showAddModal"
-        @close="showAddModal = false"
+        :edit-transaction="editingTransaction"
+        @close="handleCloseModal"
         @submitted="handleAddSubmitted"
       />
     </div>

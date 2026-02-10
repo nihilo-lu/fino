@@ -1228,6 +1228,19 @@ class Database:
             )
         return result
 
+    def update_fund_transaction(
+        self, fund_trans_id: int, fund_trans: Dict
+    ) -> bool:
+        """更新资金明细（仅允许无关联交易的类型）。"""
+        result = self.transaction_crud.update_fund_transaction(
+            fund_trans_id, fund_trans, self.analytics
+        )
+        if result:
+            clear_related_cache(
+                ledger_id=fund_trans.get("ledger_id"),
+            )
+        return result
+
     def update_history_after_fund_transaction(
         self, fund_date: str, ledger_id: Optional[int] = None
     ) -> None:

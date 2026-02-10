@@ -212,9 +212,46 @@ const actions = {
     return parseJson(response)
   },
 
+  async fetchTransaction(id) {
+    const response = await apiFetch(`${API_BASE}/transactions/${id}`)
+    const data = await parseJson(response)
+    return response.ok ? (data?.data ?? data) : null
+  },
+
+  async updateTransaction(id, transaction) {
+    const response = await apiFetch(`${API_BASE}/transactions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(transaction)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('更新成功', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return false
+  },
+
   async deleteTransaction(id, onSuccess) {
-    if (!confirm('确定要删除这条交易记录吗？')) return
+    if (!confirm('确定要删除这条交易明细吗？')) return
     const response = await apiFetch(`${API_BASE}/transactions/${id}`, { method: 'DELETE' })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('删除成功', 'success')
+      if (onSuccess) onSuccess()
+    } else {
+      showToast(data?.error || '删除失败', 'error')
+    }
+  },
+
+  async deleteTransactions(ids, onSuccess) {
+    if (!ids?.length) return
+    const response = await apiFetch(`${API_BASE}/transactions/batch-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('删除成功', 'success')
@@ -241,11 +278,59 @@ const actions = {
     })
     const data = await parseJson(response)
     if (response.ok && data?.success) {
-      showToast('交易记录添加成功', 'success')
+      showToast('交易明细添加成功', 'success')
       return true
     }
     showToast(data?.error || '添加失败', 'error')
     return false
+  },
+
+  async fetchFundTransaction(id) {
+    const response = await apiFetch(`${API_BASE}/fund-transactions/${id}`)
+    const data = await parseJson(response)
+    return response.ok ? (data?.data ?? data) : null
+  },
+
+  async updateFundTransaction(id, fund) {
+    const response = await apiFetch(`${API_BASE}/fund-transactions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fund)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('更新成功', 'success')
+      return true
+    }
+    showToast(data?.error || '更新失败', 'error')
+    return false
+  },
+
+  async deleteFundTransaction(id, onSuccess) {
+    const response = await apiFetch(`${API_BASE}/fund-transactions/${id}`, { method: 'DELETE' })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('删除成功', 'success')
+      if (onSuccess) onSuccess()
+    } else {
+      showToast(data?.error || '删除失败', 'error')
+    }
+  },
+
+  async deleteFundTransactions(ids, onSuccess) {
+    if (!ids?.length) return
+    const response = await apiFetch(`${API_BASE}/fund-transactions/batch-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('删除成功', 'success')
+      if (onSuccess) onSuccess()
+    } else {
+      showToast(data?.error || '删除失败', 'error')
+    }
   },
 
   async createFundTransaction(fund) {

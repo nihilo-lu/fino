@@ -823,9 +823,10 @@ export default {
           <p class="form-hint" style="margin-bottom: 16px;">开启后，设置中将显示「插件中心」标签，可管理 AI、网盘等插件。</p>
           <form @submit="handlePluginCenterSave">
             <div class="form-group checkbox-group">
-              <label class="checkbox-label">
+              <label class="toggle-switch">
                 <input v-model="pluginCenterEnabled" type="checkbox">
-                <span>开启插件中心</span>
+                <span class="toggle-slider"></span>
+                <span class="toggle-switch-label">开启插件中心</span>
               </label>
             </div>
             <div class="form-actions">
@@ -1002,28 +1003,17 @@ export default {
                 <div class="item-info">
                   <span class="item-name">{{ p.name }}</span>
                   <span class="item-desc">{{ p.manifest?.description || p.id }} · v{{ p.version }}</span>
-                  <span v-if="isPluginEnabled(p.id)" class="badge badge-success">已启用</span>
-                  <span v-else class="badge">已禁用</span>
                 </div>
                 <div class="item-actions">
-                  <button
-                    v-if="isPluginEnabled(p.id)"
-                    type="button"
-                    class="btn btn-sm btn-outline"
-                    :disabled="pluginToggling === p.id || !isAdmin"
-                    @click="handlePluginDisable(p.id)"
-                  >
-                    {{ pluginToggling === p.id ? '处理中...' : '禁用' }}
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="btn btn-sm btn-primary"
-                    :disabled="pluginToggling === p.id || !isAdmin"
-                    @click="handlePluginEnable(p.id)"
-                  >
-                    {{ pluginToggling === p.id ? '处理中...' : '启用' }}
-                  </button>
+                  <label class="toggle-switch" :title="isPluginEnabled(p.id) ? '点击禁用' : '点击启用'">
+                    <input
+                      type="checkbox"
+                      :checked="isPluginEnabled(p.id)"
+                      :disabled="pluginToggling === p.id || !isAdmin"
+                      @change="isPluginEnabled(p.id) ? handlePluginDisable(p.id) : handlePluginEnable(p.id)"
+                    >
+                    <span class="toggle-slider"></span>
+                  </label>
                   <button
                     type="button"
                     class="btn btn-sm btn-outline"

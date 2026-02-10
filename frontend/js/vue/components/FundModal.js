@@ -10,7 +10,8 @@ function parseNum(v) {
 export default {
   name: 'FundModal',
   props: {
-    show: Boolean
+    show: Boolean,
+    editFund: { type: Object, default: null }
   },
   emits: ['close', 'submitted'],
   setup(props, { emit }) {
@@ -64,20 +65,43 @@ export default {
       rates.value = r && typeof r === 'object' ? r : {}
     }
 
-    watch(() => props.show, async (v) => {
+    watch(() => [props.show, props.editFund], async ([v, edit]) => {
       if (v) {
         const ledgerId = state.currentLedgerId || state.ledgers[0]?.id || ''
         const accounts = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : state.accounts
         modalAccounts.value = accounts
         const defaultAccountId = state.currentAccountId || accounts[0]?.id || ''
-        form.value = {
-          ledger_id: ledgerId,
-          type: '',
-          date: new Date().toISOString().split('T')[0],
-          notes: ''
+        if (edit?.id) {
+          form.value = {
+            ledger_id: edit.ledger_id ?? ledgerId,
+            type: edit.type || '',
+            date: edit.date || new Date().toISOString().split('T')[0],
+            notes: (edit.notes || '').trim()
+          }
+          const entries = edit.entries || []
+          const mainCurrency = edit.currency || 'CNY'
+          const debits = entries.filter((e) => e.side === 'debit').map((e) => ({
+            account_id: e.account_id || '',
+            amount: e.amount != null ? String(e.amount) : '',
+            currency: e.currency || mainCurrency
+          }))
+          const credits = entries.filter((e) => e.side === 'credit').map((e) => ({
+            account_id: e.account_id || '',
+            amount: e.amount != null ? String(e.amount) : '',
+            currency: e.currency || mainCurrency
+          }))
+          debitRows.value = debits.length ? debits : [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
+          creditRows.value = credits.length ? credits : [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
+        } else {
+          form.value = {
+            ledger_id: ledgerId,
+            type: '',
+            date: new Date().toISOString().split('T')[0],
+            notes: ''
+          }
+          debitRows.value = [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
+          creditRows.value = [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
         }
-        debitRows.value = [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
-        creditRows.value = [{ account_id: defaultAccountId || '', amount: '', currency: 'CNY' }]
         await loadRates()
       }
     })
@@ -143,7 +167,7 @@ export default {
       if (!canSubmit.value) return
       loading.value = true
       try {
-        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id
+        const ledgerId = parseInt(form.value.ledger_id) || state.currentLedgerId || state.ledgers[0]?.id
         const entries = [
           ...debitRows.value
             .filter(r => r.account_id && parseNum(r.amount) > 0)
@@ -152,13 +176,17 @@ export default {
             .filter(r => r.account_id && parseNum(r.amount) > 0)
             .map(r => ({ account_id: parseInt(r.account_id), side: 'credit', amount: parseNum(r.amount), currency: r.currency || 'CNY' }))
         ]
-        const ok = await actions.createFundTransaction({
-          ledger_id: parseInt(ledgerId),
+        const payload = {
+          ledger_id: ledgerId,
           type: form.value.type,
           date: form.value.date,
           notes: (form.value.notes || '').trim(),
           entries
-        })
+        }
+        const isEdit = props.editFund?.id
+        const ok = isEdit
+          ? await actions.updateFundTransaction(props.editFund.id, payload)
+          : await actions.createFundTransaction(payload)
         if (ok) {
           emit('close')
           emit('submitted')
@@ -203,7 +231,7 @@ export default {
     <div :class="['modal', { active: show }]">
       <div class="modal-content fund-modal-content">
         <div class="modal-header">
-          <h3>添加资金明细（借贷记账）</h3>
+          <h3>{{ editFund?.id ? '编辑资金明细' : '添加资金明细（借贷记账）' }}</h3>
           <button class="modal-close" type="button" @click="$emit('close')">
             <span class="material-icons">close</span>
           </button>

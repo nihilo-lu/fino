@@ -1,6 +1,5 @@
 {
   "enabled": [
-    "fino-cloudreve",
     "fino-ai-chat"
   ]
 }
