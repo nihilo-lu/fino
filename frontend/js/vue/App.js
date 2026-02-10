@@ -16,6 +16,7 @@ import ApiDocsView from './components/ApiDocsView.js'
 import CloudStorageView from './components/CloudStorageView.js'
 import Toast from './components/Toast.js'
 import FundModal from './components/FundModal.js'
+import AddLedgerModal from './components/AddLedgerModal.js'
 import AiChatButton from './components/AiChatButton.js'
 import AiChatWindow from './components/AiChatWindow.js'
 
@@ -40,7 +41,7 @@ const NAV_ITEMS_BASE = [
 
 export default {
   name: 'App',
-  components: {
+components: {
     LoginPage,
     RegisterPage,
     LedgerSelectPage,
@@ -55,6 +56,7 @@ export default {
     CloudStorageView,
     Toast,
     FundModal,
+    AddLedgerModal,
     AiChatButton,
     AiChatWindow
   },
@@ -63,9 +65,10 @@ export default {
     const showRegister = ref(false)
     const currentPage = ref('dashboard')
     const sidebarCollapsed = ref(false)
-    const showFundModal = ref(false)
+const showFundModal = ref(false)
     const editingFund = ref(null)
     const fundsRefreshTrigger = ref(0)
+    const showAddLedgerModal = ref(false)
     const showAiChat = ref(false)
     const loginError = ref('')
     const registerError = ref('')
@@ -108,9 +111,17 @@ export default {
       replaceState(currentPage.value)
     }
 
-    const handleCreateLedger = async ({ name, description }) => {
+const handleCreateLedger = async ({ name, description }) => {
       const ok = await actions.createLedger(name, description)
       if (ok) await actions.fetchLedgers()
+    }
+
+    const handleShowAddLedgerModal = () => {
+      showAddLedgerModal.value = true
+    }
+
+    const handleAddLedgerModalClose = () => {
+      showAddLedgerModal.value = false
     }
 
     const handleRegister = async (formData) => {
@@ -213,7 +224,7 @@ export default {
       handleLogin,
       handleRegister,
       handleLogout,
-      handleLedgerSelect,
+handleLedgerSelect,
       handleCreateLedger,
       handleSwitchLedger,
       navigateTo,
@@ -223,6 +234,9 @@ export default {
       handleFundModalClose,
       refreshFundsList,
       fundsRefreshTrigger,
+      showAddLedgerModal,
+      handleShowAddLedgerModal,
+      handleAddLedgerModalClose,
       loginError,
       registerError,
       registerSuccess
@@ -246,12 +260,12 @@ export default {
         />
       </div>
 
-      <LedgerSelectPage
+<LedgerSelectPage
         v-else-if="!state.currentLedgerId"
         :ledgers="state.ledgers"
         :user-name="userName"
         @select-ledger="handleLedgerSelect"
-        @create-ledger="handleCreateLedger"
+        @show-add-ledger-modal="handleShowAddLedgerModal"
         @logout="handleLogout"
       />
 
@@ -312,11 +326,16 @@ export default {
       </div>
 
       <Toast />
-      <FundModal
+<FundModal
         :show="showFundModal"
         :edit-fund="editingFund"
         @close="handleFundModalClose"
         @submitted="handleFundSubmitted"
+      />
+      <AddLedgerModal
+        :show="showAddLedgerModal"
+        @close="handleAddLedgerModalClose"
+        @create="handleCreateLedger"
       />
       <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />
       <AiChatWindow

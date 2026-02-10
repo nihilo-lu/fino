@@ -1390,6 +1390,16 @@ body {
     overflow-y: auto;
 }
 
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.form-actions .btn {
+    flex: 1;
+}
+
 /* 资金明细弹窗 - 借贷记账法 */
 .fund-modal-content {
     max-width: 1200px;
