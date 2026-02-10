@@ -12,6 +12,8 @@ export default {
     const { state, actions } = useStore()
     const funds = ref([])
     const typeFilter = ref('')
+    const startDate = ref('')
+    const endDate = ref('')
     const selectedIds = ref([])
 
     const load = async () => {
@@ -19,12 +21,16 @@ export default {
         funds.value = []
         return
       }
-      const data = await actions.fetchFundTransactions({ type: typeFilter.value })
+      const data = await actions.fetchFundTransactions({
+        type: typeFilter.value,
+        start_date: startDate.value,
+        end_date: endDate.value
+      })
       funds.value = data?.fund_transactions || []
     }
 
     onMounted(load)
-    watch(() => [state.currentLedgerId, state.currentAccountId, typeFilter], load, { deep: true })
+    watch(() => [state.currentLedgerId, state.currentAccountId, typeFilter, startDate, endDate], load, { deep: true })
     watch(() => props.refreshTrigger, load)
 
     const toggleSelect = (id) => {
@@ -58,6 +64,8 @@ export default {
       state,
       funds,
       typeFilter,
+      startDate,
+      endDate,
       selectedIds,
       formatCurrency,
       showAdd: () => emit('show-add-fund'),
@@ -84,6 +92,15 @@ export default {
             <option value="支出">支出</option>
             <option value="内转">内转</option>
           </select>
+          <input type="date" v-model="startDate" class="date-control">
+          <span>至</span>
+          <input type="date" v-model="endDate" class="date-control">
+          <button class="btn btn-primary" @click="load">
+            <span class="material-icons">search</span>
+            查询
+          </button>
+        </div>
+        <div class="toolbar-right">
           <button class="btn btn-danger" @click="batchDelete" :disabled="!selectedIds.length">
             <span class="material-icons">delete_sweep</span>
             批量删除 ({{ selectedIds.length }})

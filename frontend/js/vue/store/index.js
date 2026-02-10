@@ -266,6 +266,8 @@ const actions = {
     const params = { ledger_id: state.currentLedgerId, limit: 50 }
     if (state.currentAccountId) params.account_id = state.currentAccountId
     if (opts.type) params.type = opts.type
+    if (opts.start_date) params.start_date = opts.start_date
+    if (opts.end_date) params.end_date = opts.end_date
     const response = await apiFetch(`${API_BASE}/fund-transactions?${new URLSearchParams(params)}`)
     return parseJson(response)
   },

@@ -63,7 +63,7 @@ components: {
   setup() {
     const { state, actions } = useStore()
     const showRegister = ref(false)
-    const currentPage = ref('dashboard')
+    const currentPage = ref(getPageFromPath())
     const sidebarCollapsed = ref(false)
 const showFundModal = ref(false)
     const editingFund = ref(null)
