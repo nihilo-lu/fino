@@ -21,16 +21,22 @@ export default {
       amount: '',
       fee: 0,
       category: '',
+      currency: 'CNY',
       notes: ''
     })
     const categories = ref([])
+    const currencies = ref([])
     const loading = ref(false)
     const modalAccounts = ref([])
 
     const amount = computed(() => {
       const p = parseFloat(form.value.price) || 0
       const q = parseFloat(form.value.quantity) || 0
-      return (p * q).toFixed(2)
+      const fee = parseFloat(form.value.fee) || 0
+      const base = p * q
+      if (form.value.type === '买入') return (base + fee).toFixed(2)
+      if (form.value.type === '卖出') return (base - fee).toFixed(2)
+      return base.toFixed(2)
     })
 
     watch(amount, (v) => { form.value.amount = v })
@@ -50,9 +56,14 @@ export default {
         form.value.amount = ''
         form.value.fee = 0
         form.value.category = ''
+        form.value.currency = 'CNY'
         form.value.notes = ''
-        const data = await actions.fetchCategories()
-        categories.value = data?.categories || []
+        const [catData, currData] = await Promise.all([
+          actions.fetchCategories(),
+          actions.fetchCurrencies()
+        ])
+        categories.value = catData?.categories || []
+        currencies.value = currData?.currencies || []
       }
     })
     watch(() => form.value.ledger_id, async (ledgerId) => {
@@ -73,6 +84,7 @@ export default {
           amount: parseFloat(form.value.amount || amount.value),
           fee: parseFloat(form.value.fee) || 0,
           category: form.value.category || null,
+          currency: form.value.currency || 'CNY',
           notes: form.value.notes || ''
         })
         if (success) {
@@ -88,6 +100,7 @@ export default {
       state,
       form,
       categories,
+      currencies,
       modalAccounts,
       loading,
       amount,
@@ -118,6 +131,22 @@ export default {
                 <select v-model="form.account_id" required>
                   <option value="">选择账户</option>
                   <option v-for="a in modalAccounts" :key="a.id" :value="a.id">{{ a.name }} ({{ a.currency }})</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>类别</label>
+                <select v-model="form.category">
+                  <option value="">选择类别</option>
+                  <option v-for="c in categories" :key="c.name" :value="c.name">{{ c.name }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>币种</label>
+                <select v-model="form.currency">
+                  <option v-if="currencies.length === 0" value="CNY">CNY - 人民币</option>
+                  <option v-for="cur in currencies" :key="cur.id" :value="cur.code">{{ cur.code }} - {{ cur.name }}</option>
                 </select>
               </div>
             </div>
@@ -155,22 +184,15 @@ export default {
                 <label>数量 *</label>
                 <input type="number" v-model="form.quantity" step="0.01" required placeholder="0">
               </div>
-              <div class="form-group">
-                <label>成交金额</label>
-                <input type="number" :value="amount" readonly>
-              </div>
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>手续费</label>
-                <input type="number" v-model="form.fee" step="0.01">
+                <input type="number" v-model="form.fee" step="0.01" placeholder="0">
               </div>
               <div class="form-group">
-                <label>类别</label>
-                <select v-model="form.category">
-                  <option value="">选择类别</option>
-                  <option v-for="c in categories" :key="c.name" :value="c.name">{{ c.name }}</option>
-                </select>
+                <label>成交金额</label>
+                <input type="number" :value="amount" readonly>
               </div>
             </div>
             <div class="form-group">

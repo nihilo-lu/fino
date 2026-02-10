@@ -80,6 +80,7 @@ def create_transaction():
             "amount": data.get("amount"),
             "fee": data.get("fee", 0),
             "category": data.get("category"),
+            "currency": data.get("currency", "CNY"),
             "notes": data.get("notes", ""),
         }
 

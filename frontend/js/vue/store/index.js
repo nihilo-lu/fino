@@ -268,6 +268,11 @@ const actions = {
     return parseJson(response)
   },
 
+  async fetchCurrencies() {
+    const response = await apiFetch(`${API_BASE}/currencies`)
+    return parseJson(response)
+  },
+
   async fetchAnalysis() {
     if (!state.currentLedgerId) return null
     const params = { ledger_id: state.currentLedgerId }

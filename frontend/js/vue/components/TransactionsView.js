@@ -98,6 +98,7 @@ export default {
                   <th>类型</th>
                   <th>代码</th>
                   <th>名称</th>
+                  <th>币种</th>
                   <th>价格</th>
                   <th>数量</th>
                   <th>金额</th>
@@ -107,13 +108,14 @@ export default {
               </thead>
               <tbody>
                 <tr v-if="transactions.length === 0">
-                  <td colspan="9" class="empty-message">暂无交易记录</td>
+                  <td colspan="10" class="empty-message">暂无交易记录</td>
                 </tr>
                 <tr v-for="t in transactions" :key="t.id">
                   <td>{{ t.date }}</td>
                   <td><span :class="['badge', 'badge-' + (t.type === '买入' ? 'success' : t.type === '卖出' ? 'danger' : 'info')]">{{ t.type }}</span></td>
                   <td>{{ t.code }}</td>
                   <td>{{ t.name }}</td>
+                  <td>{{ t.currency || 'CNY' }}</td>
                   <td>{{ formatCurrency(t.price) }}</td>
                   <td>{{ t.quantity }}</td>
                   <td>{{ formatCurrency(t.amount) }}</td>
