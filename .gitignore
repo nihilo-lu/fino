@@ -33,7 +33,7 @@ env/
 investment.db
 
 # 配置文件（含密码、Token 等敏感信息）
-conf/config.yaml
+# conf/config.yaml  # 保留此行供参考，实际忽略配置在下方（临时解除以提交示例配置）
 
 # IDE
 .idea/

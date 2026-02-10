@@ -1,0 +1,49 @@
+database:
+  type: sqlite
+  sqlite:
+    path: investment.db
+  postgresql:
+    host: localhost
+    port: 5432
+    database: investment
+    user: postgres
+    password: ''
+    sslmode: prefer
+  d1:
+    account_id: ''
+    database_id: ''
+    api_token: ''
+cookie:
+  expiry_days: 30
+  key: your_secret_key_change_me
+  name: investment_tracker_auth
+credentials:
+  usernames:
+    admin:
+      email: ''
+      first_name: admin
+      password: $2b$12$8L2cLFpT4lpjD/3Xm5IXcelH1dhO6D5maWU/knhw1JenJ44cEK7mm
+      roles:
+      - admin
+      disabled: false
+pre-authorized:
+  emails: []
+lab:
+  ai:
+    base_url: https://api.openai.com/v1
+    api_key: ''
+    model: gpt-4o-mini
+    show_thinking: true
+    context_messages: 20
+  cloudreve:
+    enabled: false
+    verify_ssl: true
+pwa:
+  name: 投资追踪器
+  short_name: 投资追踪
+  description: 投资组合追踪与收益分析工具
+  theme_color: '#E8A317'
+  background_color: '#ffffff'
+  display: standalone
+  icon_192: /frontend/icons/icon-192.png
+  icon_512: /frontend/icons/icon-512.png
