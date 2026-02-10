@@ -900,79 +900,121 @@ const actions = {
     return false
   },
 
+  /**
+   * Plotly 图表渲染（仪表盘）
+   * - Plotly 通过 index.html 以全局变量 window.Plotly 注入
+   * - 若 Plotly 不可用（离线/被拦截），给出提示避免空白
+   */
+  _getPlotly() {
+    return (typeof window !== 'undefined' && window.Plotly) ? window.Plotly : null
+  },
+
   drawPieChart(container, labels, values, title) {
-    if (!container || labels.length === 0) return
-    const canvas = document.createElement('canvas')
-    canvas.width = container.clientWidth
-    canvas.height = container.clientHeight - 20
-    container.innerHTML = ''
-    container.appendChild(canvas)
-    const ctx = canvas.getContext('2d')
-    const total = values.reduce((sum, v) => sum + v, 0)
-    if (total === 0) return
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const radius = Math.min(centerX, centerY) - 40
+    if (!container || !labels?.length) return
+
+    const Plotly = this._getPlotly()
+    if (!Plotly) {
+      container.innerHTML = '<div class="empty-state"><span class="material-icons">pie_chart</span><p>Plotly 未加载，无法渲染图表</p></div>'
+      return
+    }
+
+    const total = (values || []).reduce((sum, v) => sum + (Number(v) || 0), 0)
+    if (!total) {
+      container.innerHTML = '<div class="empty-state"><span class="material-icons">pie_chart</span><p>暂无可用数据</p></div>'
+      return
+    }
+
     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
-    let startAngle = -Math.PI / 2
-    labels.forEach((label, i) => {
-      const sliceAngle = (values[i] / total) * 2 * Math.PI
-      const endAngle = startAngle + sliceAngle
-      ctx.beginPath()
-      ctx.moveTo(centerX, centerY)
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle)
-      ctx.closePath()
-      ctx.fillStyle = colors[i % colors.length]
-      ctx.fill()
-      ctx.beginPath()
-      ctx.moveTo(centerX, centerY)
-      ctx.arc(centerX, centerY, radius * 0.6, 0, 2 * Math.PI)
-      ctx.fillStyle = '#ffffff'
-      ctx.fill()
-      startAngle = endAngle
-    })
-    ctx.fillStyle = '#1e293b'
-    ctx.font = '14px Inter, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(title, centerX, centerY)
+    const data = [
+      {
+        type: 'pie',
+        labels,
+        values,
+        hole: 0.6,
+        sort: false,
+        direction: 'clockwise',
+        textinfo: 'percent',
+        textposition: 'inside',
+        hovertemplate: '%{label}<br>%{value:,.2f} CNY<br>%{percent}<extra></extra>',
+        marker: { colors }
+      }
+    ]
+
+    const layout = {
+      margin: { l: 10, r: 10, t: 10, b: 10 },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0, y: -0.08 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { family: 'Inter, sans-serif', color: '#1e293b' },
+      annotations: [
+        {
+          text: title || '',
+          x: 0.5,
+          y: 0.5,
+          showarrow: false,
+          font: { size: 14, color: '#1e293b' }
+        }
+      ]
+    }
+
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    }
+
+    // 使用 react 可复用已有 DOM，避免反复销毁带来的闪烁
+    Plotly.react(container, data, layout, config)
   },
 
   drawBarChart(container, labels, values, title) {
-    if (!container || labels.length === 0) return
-    const canvas = document.createElement('canvas')
-    canvas.width = container.clientWidth
-    canvas.height = container.clientHeight - 20
-    container.innerHTML = ''
-    container.appendChild(canvas)
-    const ctx = canvas.getContext('2d')
-    const padding = { top: 20, right: 20, bottom: 60, left: 80 }
-    const chartWidth = canvas.width - padding.left - padding.right
-    const chartHeight = canvas.height - padding.top - padding.bottom
-    const maxValue = Math.max(...values.map(Math.abs), 1)
-    const barWidth = chartWidth / labels.length * 0.7
-    const barGap = chartWidth / labels.length * 0.3
-    const zeroY = padding.top + chartHeight / 2
-    labels.forEach((label, i) => {
-      const value = values[i]
-      const normalizedHeight = (Math.abs(value) / maxValue) * (chartHeight / 2 - 10)
-      const barX = padding.left + i * (barWidth + barGap) + barGap / 2
-      const barY = value >= 0 ? zeroY - normalizedHeight : zeroY
-      ctx.fillStyle = value >= 0 ? '#10b981' : '#ef4444'
-      ctx.fillRect(barX, barY, barWidth, normalizedHeight)
-      ctx.fillStyle = '#64748b'
-      ctx.font = '11px Inter, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.save()
-      ctx.translate(barX + barWidth / 2, canvas.height - padding.bottom + 15)
-      ctx.rotate(-Math.PI / 4)
-      ctx.fillText(label, 0, 0)
-      ctx.restore()
-    })
-    ctx.strokeStyle = '#e2e8f0'
-    ctx.beginPath()
-    ctx.moveTo(padding.left, zeroY)
-    ctx.lineTo(canvas.width - padding.right, zeroY)
-    ctx.stroke()
+    if (!container || !labels?.length) return
+
+    const Plotly = this._getPlotly()
+    if (!Plotly) {
+      container.innerHTML = '<div class="empty-state"><span class="material-icons">bar_chart</span><p>Plotly 未加载，无法渲染图表</p></div>'
+      return
+    }
+
+    const y = (values || []).map((v) => Number(v) || 0)
+    const colors = y.map((v) => (v >= 0 ? '#10b981' : '#ef4444'))
+
+    const data = [
+      {
+        type: 'bar',
+        x: labels,
+        y,
+        marker: { color: colors },
+        hovertemplate: '%{x}<br>%{y:,.2f} CNY<extra></extra>'
+      }
+    ]
+
+    const layout = {
+      margin: { l: 60, r: 10, t: 10, b: 80 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { family: 'Inter, sans-serif', color: '#1e293b' },
+      xaxis: {
+        tickangle: -45,
+        automargin: true
+      },
+      yaxis: {
+        title: { text: title || '' },
+        zeroline: true,
+        zerolinecolor: '#e2e8f0',
+        gridcolor: 'rgba(226,232,240,0.6)',
+        automargin: true
+      }
+    }
+
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    }
+
+    Plotly.react(container, data, layout, config)
   }
 }
 

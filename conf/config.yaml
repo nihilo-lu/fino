@@ -37,7 +37,7 @@ lab:
     show_thinking: true
     context_messages: 20
   cloudreve:
-    enabled: false
+    enabled: true
     verify_ssl: true
 pwa:
   name: 投资追踪器
