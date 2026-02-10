@@ -14,7 +14,8 @@ const state = reactive({
   cloudreveEnabled: false,
   cloudreveBound: false,
   enabledPlugins: [],  // 已启用的插件 id 列表，用于控制 AI 按钮、网盘入口等
-  pluginCenterEnabled: true  // 是否在设置中显示插件中心
+  pluginCenterEnabled: true,  // 是否在设置中显示插件中心
+  dashboardRefreshTrigger: 0   // 交易/资金明细变更时递增，供仪表盘 watch 后重新拉取数据
 })
 
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
@@ -227,6 +228,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('更新成功', 'success')
+      state.dashboardRefreshTrigger++
       return true
     }
     showToast(data?.error || '更新失败', 'error')
@@ -239,6 +241,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('删除成功', 'success')
+      state.dashboardRefreshTrigger++
       if (onSuccess) onSuccess()
     } else {
       showToast(data?.error || '删除失败', 'error')
@@ -255,6 +258,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('删除成功', 'success')
+      state.dashboardRefreshTrigger++
       if (onSuccess) onSuccess()
     } else {
       showToast(data?.error || '删除失败', 'error')
@@ -281,6 +285,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('交易明细添加成功', 'success')
+      state.dashboardRefreshTrigger++
       return true
     }
     showToast(data?.error || '添加失败', 'error')

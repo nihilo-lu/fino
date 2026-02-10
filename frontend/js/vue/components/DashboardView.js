@@ -39,6 +39,8 @@ export default {
       () => [state.currentLedgerId, state.currentAccountId],
       loadDashboard
     )
+    // 交易明细增删改后自动刷新仪表盘，无需手动刷新页面
+    watch(() => state.dashboardRefreshTrigger, loadDashboard)
 
     const drawCharts = () => {
       if (positions.value.length === 0) return
