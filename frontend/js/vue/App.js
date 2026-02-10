@@ -158,6 +158,10 @@ export default {
       fundsRefreshTrigger.value++
     }
 
+    const refreshFundsList = () => {
+      fundsRefreshTrigger.value++
+    }
+
       onMounted(async () => {
       initRouter((pageId) => {
         currentPage.value = pageId
@@ -202,6 +206,7 @@ export default {
       navigateTo,
       handleShowFundModal,
       handleFundSubmitted,
+      refreshFundsList,
       fundsRefreshTrigger,
       loginError,
       registerError,
@@ -264,6 +269,7 @@ export default {
             <TransactionsView
               v-show="currentPage === 'transactions'"
               :class="['view', { active: currentPage === 'transactions' }]"
+              @transaction-changed="refreshFundsList"
             />
             <FundsView
               v-show="currentPage === 'funds'"

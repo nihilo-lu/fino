@@ -6,7 +6,8 @@ import AddTransactionModal from './AddTransactionModal.js'
 export default {
   name: 'TransactionsView',
   components: { AddTransactionModal },
-  setup() {
+  emits: ['transaction-changed'],
+  setup(props, { emit }) {
     const { state, actions } = useStore()
     const transactions = ref([])
     const total = ref(0)
@@ -42,6 +43,12 @@ export default {
     const handleAddSubmitted = () => {
       showAddModal.value = false
       load()
+      emit('transaction-changed')
+    }
+
+    const onDeleteSuccess = () => {
+      load()
+      emit('transaction-changed')
     }
 
     return {
@@ -60,7 +67,7 @@ export default {
       showAddModal,
       showAdd: () => { showAddModal.value = true },
       handleAddSubmitted,
-      deleteTransaction: (id) => actions.deleteTransaction(id, load)
+      deleteTransaction: (id) => actions.deleteTransaction(id, onDeleteSuccess)
     }
   },
   template: `
