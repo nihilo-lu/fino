@@ -69,8 +69,8 @@ export default {
         <div class="toolbar-left">
           <select v-model="typeFilter" class="select-control">
             <option value="">全部类型</option>
-            <option value="买入">买入</option>
-            <option value="卖出">卖出</option>
+            <option value="开仓">开仓</option>
+            <option value="平仓">平仓</option>
             <option value="分红">分红</option>
           </select>
           <input type="date" v-model="startDate" class="date-control">
@@ -112,7 +112,7 @@ export default {
                 </tr>
                 <tr v-for="t in transactions" :key="t.id">
                   <td>{{ t.date }}</td>
-                  <td><span :class="['badge', 'badge-' + (t.type === '买入' ? 'success' : t.type === '卖出' ? 'danger' : 'info')]">{{ t.type }}</span></td>
+                  <td><span :class="['badge', 'badge-' + (t.type === '开仓' ? 'success' : t.type === '平仓' ? 'danger' : 'info')]">{{ t.type }}</span></td>
                   <td>{{ t.code }}</td>
                   <td>{{ t.name }}</td>
                   <td>{{ t.currency || 'CNY' }}</td>

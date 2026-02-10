@@ -633,7 +633,7 @@ class InvestmentTracker {
         tbody.innerHTML = transactions.map(trans => `
             <tr>
                 <td>${trans.date || '-'}</td>
-                <td><span class="badge badge-${trans.type === '买入' ? 'success' : trans.type === '卖出' ? 'danger' : 'info'}">${trans.type || '-'}</span></td>
+                <td><span class="badge badge-${trans.type === '开仓' ? 'success' : trans.type === '平仓' ? 'danger' : 'info'}">${trans.type || '-'}</span></td>
                 <td>${trans.code || '-'}</td>
                 <td>${trans.name || '-'}</td>
                 <td>${formatCurrency(trans.price)}</td>
@@ -770,7 +770,8 @@ class InvestmentTracker {
         }
 
         document.getElementById('trans-date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('trans-ledger').value = this.currentLedgerId;
+        const transLedgerEl = document.getElementById('trans-ledger');
+        if (transLedgerEl) transLedgerEl.value = this.currentLedgerId;
 
         this.loadCategories();
         this.navigateTo('add-transaction');
@@ -804,7 +805,7 @@ class InvestmentTracker {
 
         const formData = new FormData(e.target);
         const transaction = {
-            ledger_id: parseInt(formData.get('ledger_id')),
+            ledger_id: parseInt(this.currentLedgerId),
             account_id: parseInt(formData.get('account_id')),
             type: formData.get('type'),
             date: formData.get('date'),
@@ -844,13 +845,6 @@ class InvestmentTracker {
     showAddFundModal() {
         this.showModal('添加资金明细', `
             <form id="fund-form">
-                <div class="form-group">
-                    <label>账本</label>
-                    <select name="ledger_id" required>
-                        <option value="">选择账本</option>
-                        ${this.ledgers.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                    </select>
-                </div>
                 <div class="form-group">
                     <label>账户</label>
                     <select name="account_id" required>
@@ -905,7 +899,7 @@ class InvestmentTracker {
 
         const formData = new FormData(e.target);
         const fund = {
-            ledger_id: parseInt(formData.get('ledger_id')),
+            ledger_id: parseInt(this.currentLedgerId),
             account_id: parseInt(formData.get('account_id')),
             type: formData.get('type'),
             date: formData.get('date'),

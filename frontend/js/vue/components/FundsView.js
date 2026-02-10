@@ -40,6 +40,9 @@ export default {
         <div class="toolbar-left">
           <select v-model="typeFilter" class="select-control">
             <option value="">全部类型</option>
+            <option value="开仓">开仓</option>
+            <option value="平仓">平仓</option>
+            <option value="分红">分红</option>
             <option value="本金投入">本金投入</option>
             <option value="本金撤出">本金撤出</option>
             <option value="收入">收入</option>
@@ -60,10 +63,10 @@ export default {
                 <tr>
                   <th>日期</th>
                   <th>类型</th>
+                  <th>借方（账户-持仓/现金）</th>
+                  <th>贷方（账户-持仓/现金）</th>
                   <th>金额</th>
-                  <th>币种</th>
-                  <th>人民币金额</th>
-                  <th>描述</th>
+                  <th>备注</th>
                 </tr>
               </thead>
               <tbody>
@@ -73,10 +76,10 @@ export default {
                 <tr v-for="f in funds" :key="f.id">
                   <td>{{ f.date }}</td>
                   <td>{{ f.type }}</td>
-                  <td>{{ formatCurrency(f.amount, f.currency) }}</td>
-                  <td>{{ f.currency }}</td>
-                  <td>{{ formatCurrency(f.amount_cny) }}</td>
-                  <td>{{ f.description }}</td>
+                  <td>{{ f.debit_display || f.debit_accounts || '-' }}</td>
+                  <td>{{ f.credit_display || f.credit_accounts || '-' }}</td>
+                  <td>{{ formatCurrency(f.total_debit ?? f.total_credit ?? f.amount, f.currency) }}</td>
+                  <td>{{ f.notes || '-' }}</td>
                 </tr>
               </tbody>
             </table>

@@ -34,8 +34,8 @@ export default {
       const q = parseFloat(form.value.quantity) || 0
       const fee = parseFloat(form.value.fee) || 0
       const base = p * q
-      if (form.value.type === '买入') return (base + fee).toFixed(2)
-      if (form.value.type === '卖出') return (base - fee).toFixed(2)
+      if (form.value.type === '开仓') return (base + fee).toFixed(2)
+      if (form.value.type === '平仓') return (base - fee).toFixed(2)
       return base.toFixed(2)
     })
 
@@ -72,18 +72,14 @@ export default {
         }
       }
     })
-    watch(() => form.value.ledger_id, async (ledgerId) => {
-      modalAccounts.value = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : []
-      form.value.account_id = modalAccounts.value[0]?.id || ''
-    })
-
     const handleSubmit = async (e) => {
       e.preventDefault()
       loading.value = true
       try {
+        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id
         const success = await actions.createTransaction({
           ...form.value,
-          ledger_id: parseInt(form.value.ledger_id),
+          ledger_id: parseInt(ledgerId),
           account_id: parseInt(form.value.account_id),
           price: parseFloat(form.value.price),
           quantity: parseFloat(form.value.quantity),
@@ -126,13 +122,6 @@ export default {
           <form @submit="handleSubmit">
             <div class="form-row">
               <div class="form-group">
-                <label>账本 *</label>
-                <select v-model="form.ledger_id" required>
-                  <option value="">选择账本</option>
-                  <option v-for="l in state.ledgers" :key="l.id" :value="l.id">{{ l.name }}</option>
-                </select>
-              </div>
-              <div class="form-group">
                 <label>账户 *</label>
                 <select v-model="form.account_id" required>
                   <option value="">选择账户</option>
@@ -161,8 +150,8 @@ export default {
                 <label>交易类型 *</label>
                 <select v-model="form.type" required>
                   <option value="">选择类型</option>
-                  <option value="买入">买入</option>
-                  <option value="卖出">卖出</option>
+                  <option value="开仓">开仓</option>
+                  <option value="平仓">平仓</option>
                   <option value="分红">分红</option>
                 </select>
               </div>

@@ -158,6 +158,84 @@ class TransactionCRUD:
             # 获取刚插入的交易ID
             transaction_id = cursor.lastrowid
 
+            # 自动创建关联资金记录（与交易一对一，删除时一并删除）
+            trans_type = transaction.get("type")
+            if trans_type in ("买入", "卖出", "开仓", "平仓", "分红"):
+                cursor.execute(
+                    """
+                    INSERT INTO fund_transactions (
+                        ledger_id, date, type, currency_id, notes, transaction_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        transaction["ledger_id"],
+                        transaction["date"],
+                        trans_type,
+                        currency_id,
+                        transaction.get("notes"),
+                        transaction_id,
+                    ),
+                )
+                fund_transaction_id = cursor.lastrowid
+                account_id = transaction["account_id"]
+                amount = transaction["amount"]
+                if trans_date:
+                    amount_cny_entry = analytics.convert_to_cny_at_date(
+                        amount, currency_code, trans_date
+                    )
+                else:
+                    amount_cny_entry = analytics.convert_to_cny(
+                        amount, currency_code
+                    )
+                # 买入/开仓：借-持仓(增)、贷-现金(减)；卖出/平仓/分红：借-现金(增)、贷-持仓(减)
+                if trans_type in ("买入", "开仓"):
+                    entries = [
+                        {
+                            "account_id": account_id,
+                            "side": "debit",
+                            "amount": amount,
+                            "subject_type": "position",
+                        },
+                        {
+                            "account_id": account_id,
+                            "side": "credit",
+                            "amount": amount,
+                            "subject_type": "cash",
+                        },
+                    ]
+                else:
+                    entries = [
+                        {
+                            "account_id": account_id,
+                            "side": "debit",
+                            "amount": amount,
+                            "subject_type": "cash",
+                        },
+                        {
+                            "account_id": account_id,
+                            "side": "credit",
+                            "amount": amount,
+                            "subject_type": "position",
+                        },
+                    ]
+                for entry in entries:
+                    cursor.execute(
+                        """
+                        INSERT INTO fund_transaction_entries
+                        (fund_transaction_id, account_id, side, amount, amount_cny, subject_type)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            fund_transaction_id,
+                            entry["account_id"],
+                            entry["side"],
+                            entry["amount"],
+                            amount_cny_entry,
+                            entry.get("subject_type", "cash"),
+                        ),
+                    )
+
             # 更新持仓（通过 analytics 模块）
             analytics.update_position(transaction, transaction_id)
 
@@ -486,7 +564,7 @@ class TransactionCRUD:
     def delete_transaction(
         self, transaction_id: int, analytics, db=None, rebuild_positions: bool = True
     ) -> bool:
-        """删除交易记录并重新同步持仓。若该交易有关联的资金明细（开仓/平仓），则一并删除。
+        """删除交易记录并重新同步持仓。若该交易有关联的资金明细（与 transaction_id 关联），则一并删除。
         同时删除对应的持仓历史（position_history）中受影响的记录，并重新生成。
 
         Args:
@@ -765,6 +843,7 @@ class TransactionCRUD:
         Returns:
             pd.DataFrame: 资金明细数据框
         """
+        # 借贷记账法：借方/贷方展示为「账户-子科目(持仓/现金) 金额」，持仓与现金为账户下子科目
         query = """
             SELECT 
                 ft.id,
@@ -776,6 +855,24 @@ class TransactionCRUD:
                 ft.created_at,
                 l.name as ledger_name,
                 c.symbol as currency_symbol,
+                COALESCE((
+                    SELECT GROUP_CONCAT(
+                        a.name || '-' || (CASE WHEN COALESCE(fte.subject_type,'cash')='position' THEN '持仓' ELSE '现金' END) || ' ' || fte.amount,
+                        '; '
+                    )
+                    FROM fund_transaction_entries fte
+                    LEFT JOIN accounts a ON fte.account_id = a.id
+                    WHERE fte.fund_transaction_id = ft.id AND fte.side = 'debit'
+                ), '') as debit_display,
+                COALESCE((
+                    SELECT GROUP_CONCAT(
+                        a.name || '-' || (CASE WHEN COALESCE(fte.subject_type,'cash')='position' THEN '持仓' ELSE '现金' END) || ' ' || fte.amount,
+                        '; '
+                    )
+                    FROM fund_transaction_entries fte
+                    LEFT JOIN accounts a ON fte.account_id = a.id
+                    WHERE fte.fund_transaction_id = ft.id AND fte.side = 'credit'
+                ), '') as credit_display,
                 COALESCE((
                     SELECT GROUP_CONCAT(a.name || ' (' || fte.amount || ')', '; ')
                     FROM fund_transaction_entries fte

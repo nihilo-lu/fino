@@ -37,17 +37,13 @@ export default {
         }
       }
     })
-    watch(() => form.value.ledger_id, async (ledgerId) => {
-      modalAccounts.value = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : []
-      form.value.account_id = modalAccounts.value[0]?.id || ''
-    })
-
     const handleSubmit = async (e) => {
       e.preventDefault()
       loading.value = true
       try {
+        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id
         const ok = await actions.createFundTransaction({
-          ledger_id: parseInt(form.value.ledger_id),
+          ledger_id: parseInt(ledgerId),
           account_id: parseInt(form.value.account_id),
           type: form.value.type,
           date: form.value.date,
@@ -77,13 +73,6 @@ export default {
         </div>
         <div class="modal-body">
           <form @submit="handleSubmit">
-            <div class="form-group">
-              <label>账本</label>
-              <select v-model="form.ledger_id" required>
-                <option value="">选择账本</option>
-                <option v-for="l in state.ledgers" :key="l.id" :value="l.id">{{ l.name }}</option>
-              </select>
-            </div>
             <div class="form-group">
               <label>账户</label>
               <select v-model="form.account_id" required>
