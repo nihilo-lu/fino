@@ -32,6 +32,21 @@ def fetch_market_price():
         return cors_jsonify({"error": str(e)}, 500)
 
 
+@market_bp.route("/exchange-rates", methods=["GET"])
+def get_exchange_rates_at_date():
+    """按日期获取各币种对人民币汇率，供资金明细弹窗试算与自动平衡。"""
+    date = request.args.get("date")
+    if not date:
+        return api_error("缺少参数 date（YYYY-MM-DD）", 400)
+    try:
+        database = get_db()
+        rates = database.get_exchange_rates_at_date(date)
+        return api_success(data={"rates": rates})
+    except Exception as e:
+        logger.error(f"Get exchange rates at date error: {e}")
+        return api_error(str(e), 500)
+
+
 @market_bp.route("/exchange-rate", methods=["POST"])
 def fetch_exchange_rate():
     data = request.get_json()

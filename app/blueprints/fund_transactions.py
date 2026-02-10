@@ -48,14 +48,43 @@ def get_fund_transactions():
 
 @fund_transactions_bp.route("/fund-transactions", methods=["POST"])
 def create_fund_transaction():
-    data = request.get_json()
+    data = request.get_json() or {}
 
-    required_fields = ["ledger_id", "account_id", "type", "date"]
-    if not all(data.get(f) for f in required_fields):
-        return api_error("缺少必填字段", 400)
-
-    try:
-        database = get_db()
+    # 支持多借多贷：传入 entries 时按借贷记账法校验
+    entries = data.get("entries")
+    if entries and isinstance(entries, list) and len(entries) > 0:
+        required = ["ledger_id", "type", "date"]
+        if not all(data.get(f) for f in required):
+            return api_error("使用分录时缺少必填字段：ledger_id, type, date", 400)
+        for i, e in enumerate(entries):
+            if not e.get("account_id") or e.get("side") not in ("debit", "credit"):
+                return api_error(f"分录第 {i + 1} 行缺少 account_id 或无效的 side（须为 debit/credit）", 400)
+            try:
+                e["amount"] = float(e.get("amount", 0))
+            except (TypeError, ValueError):
+                return api_error(f"分录第 {i + 1} 行金额无效", 400)
+        fund_trans = {
+            "ledger_id": data["ledger_id"],
+            "date": data["date"],
+            "type": data["type"],
+            "currency": data.get("currency", "CNY"),
+            "notes": data.get("notes", data.get("description", "") or ""),
+            "entries": [
+                {
+                    "account_id": int(e["account_id"]),
+                    "side": e["side"],
+                    "amount": float(e["amount"]),
+                    "currency": e.get("currency", data.get("currency", "CNY")),
+                    "subject_type": e.get("subject_type", "cash"),
+                }
+                for e in entries
+            ],
+        }
+    else:
+        # 兼容旧格式：单笔金额 + 单账户
+        required_fields = ["ledger_id", "account_id", "type", "date"]
+        if not all(data.get(f) for f in required_fields):
+            return api_error("缺少必填字段", 400)
         fund_trans = {
             "ledger_id": data.get("ledger_id"),
             "account_id": data.get("account_id"),
@@ -68,10 +97,14 @@ def create_fund_transaction():
             "description": data.get("description", ""),
         }
 
+    try:
+        database = get_db()
         result = database.add_fund_transaction(fund_trans)
         if result:
             return api_success(message="资金明细添加成功")
         return api_error("添加资金明细失败", 500)
+    except ValueError as e:
+        return api_error(str(e), 400)
     except Exception as e:
         logger.error(f"Create fund transaction error: {e}")
-        return cors_jsonify({"error": str(e)}, 500)
+        return api_error(str(e), 500)

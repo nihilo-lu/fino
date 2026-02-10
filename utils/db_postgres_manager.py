@@ -264,7 +264,7 @@ class PostgreSQLManager:
             )
         ''')
 
-        # 借贷分录明细表
+        # 借贷分录明细表（每笔分录可有独立币种，支持人民币借、港币贷等）
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS fund_transaction_entries (
                 id SERIAL PRIMARY KEY,
@@ -273,10 +273,30 @@ class PostgreSQLManager:
                 side VARCHAR(10) NOT NULL CHECK(side IN ('debit', 'credit')),
                 amount DOUBLE PRECISION NOT NULL,
                 amount_cny DOUBLE PRECISION NOT NULL,
+                currency_id INTEGER REFERENCES currencies(id),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 subject_type VARCHAR(20) DEFAULT 'cash'
             )
         ''')
+        # 迁移：为已有表添加 currency_id 并回填（兼容无该列的老库）
+        try:
+            cursor.execute('''
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'fund_transaction_entries' AND column_name = 'currency_id'
+            ''')
+            if not cursor.fetchone():
+                cursor.execute('''
+                    ALTER TABLE fund_transaction_entries
+                    ADD COLUMN currency_id INTEGER REFERENCES currencies(id)
+                ''')
+            cursor.execute('''
+                UPDATE fund_transaction_entries fte
+                SET currency_id = ft.currency_id
+                FROM fund_transactions ft
+                WHERE fte.fund_transaction_id = ft.id AND fte.currency_id IS NULL
+            ''')
+        except Exception as e:
+            logging.getLogger(__name__).debug("fund_transaction_entries currency_id migration: %s", e)
 
         # 持仓表
         cursor.execute('''

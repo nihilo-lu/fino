@@ -626,6 +626,11 @@ class Database:
         """按指定日期的汇率转换为人民币，若无历史汇率则回退到当前汇率"""
         return self.analytics.convert_to_cny_at_date(amount, currency, date)
 
+    def get_exchange_rates_at_date(self, date: str) -> Dict[str, float]:
+        """获取指定日期各币种对人民币的汇率，供前端试算与自动平衡使用。"""
+        codes = ["CNY", "USD", "HKD", "EUR"]
+        return {c: self._get_rate_at_date(c, date) for c in codes}
+
     # ============ 投资类别管理 ============
 
     def get_categories(self) -> pd.DataFrame:

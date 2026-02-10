@@ -433,6 +433,23 @@ class SQLiteManager:
 
             logging.info("迁移数据库：fund_transactions 表结构迁移完成")
 
+        # 为 fund_transaction_entries 增加 currency_id（每笔分录可独立币种，支持人民币借、港币贷等）
+        cursor.execute("PRAGMA table_info(fund_transaction_entries)")
+        fte_columns = [col[1] for col in cursor.fetchall()]
+        if "currency_id" not in fte_columns:
+            logging.info("迁移数据库：为 fund_transaction_entries 添加 currency_id 列")
+            cursor.execute(
+                "ALTER TABLE fund_transaction_entries ADD COLUMN currency_id INTEGER REFERENCES currencies(id)"
+            )
+            cursor.execute("""
+                UPDATE fund_transaction_entries
+                SET currency_id = (SELECT currency_id FROM fund_transactions WHERE id = fund_transaction_entries.fund_transaction_id)
+                WHERE currency_id IS NULL
+            """)
+            cursor.execute(
+                "UPDATE fund_transaction_entries SET currency_id = (SELECT id FROM currencies WHERE code = 'CNY' LIMIT 1) WHERE currency_id IS NULL"
+            )
+
         # 为 fund_transaction_entries 增加 subject_type（现金/持仓）列，用于开仓平仓的借贷区分
         cursor.execute("PRAGMA table_info(fund_transaction_entries)")
         fte_columns = [col[1] for col in cursor.fetchall()]

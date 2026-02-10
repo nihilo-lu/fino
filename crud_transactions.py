@@ -654,24 +654,38 @@ class TransactionCRUD:
         Returns:
             bool: 是否成功
         """
-        try:
-            cursor = self.conn.cursor()
-
-            # 解析 currency 为 currency_id
-            curr = fund_trans.get("currency", "CNY")
+        def _resolve_currency(cursor, curr):
+            """将 code 或 id 解析为 (currency_id, code)。"""
+            if curr is None or curr == "":
+                curr = "CNY"
             if isinstance(curr, int) or (
                 isinstance(curr, str) and (curr or "").isdigit()
             ):
-                currency_id = int(curr or 0)
+                cid = int(curr or 0)
+                r = cursor.execute(
+                    "SELECT id, code FROM currencies WHERE id = ? LIMIT 1", (cid,)
+                ).fetchone()
+                return (r[0], r[1]) if r else (None, None)
+            cursor.execute(
+                "SELECT id, code FROM currencies WHERE code = ? LIMIT 1", (curr or "CNY",)
+            )
+            r = cursor.fetchone()
+            return (r[0], r[1]) if r else (None, None)
+
+        try:
+            cursor = self.conn.cursor()
+            entries = fund_trans.get("entries", [])
+
+            # 主记录 currency_id：有 entries 时用首条分录币种，否则用 fund_trans.currency
+            if entries:
+                first_curr = entries[0].get("currency", fund_trans.get("currency", "CNY"))
+                currency_id, _ = _resolve_currency(cursor, first_curr)
             else:
-                cursor.execute(
-                    "SELECT id FROM currencies WHERE code = ? LIMIT 1", (curr or "CNY",)
-                )
-                r = cursor.fetchone()
-                currency_id = r[0] if r else None
+                currency_id, _ = _resolve_currency(cursor, fund_trans.get("currency", "CNY"))
             if currency_id is None:
                 logging.warning("无法解析 currency 为有效 id，添加资金明细失败")
                 return False
+
             # 创建主交易记录
             cursor.execute(
                 """
@@ -692,7 +706,6 @@ class TransactionCRUD:
             transaction_id = cursor.lastrowid
 
             # 添加借贷分录明细
-            entries = fund_trans.get("entries", [])
             if not entries:
                 # 兼容旧格式：如果没有entries，尝试从旧字段创建
                 if "debit_account" in fund_trans or "credit_account" in fund_trans:
@@ -717,18 +730,21 @@ class TransactionCRUD:
                     else:
                         amount_cny = analytics.convert_to_cny(amount, curr_code)
 
+                    # 旧格式：分录使用主记录同一币种
+                    ent_currency_id = currency_id
                     if fund_trans.get("account_id"):
                         cursor.execute(
                             """
                             INSERT INTO fund_transaction_entries 
-                            (fund_transaction_id, account_id, side, amount, amount_cny)
-                            VALUES (?, ?, 'debit', ?, ?)
+                            (fund_transaction_id, account_id, side, amount, amount_cny, currency_id, subject_type)
+                            VALUES (?, ?, 'debit', ?, ?, ?, 'cash')
                         """,
                             (
                                 transaction_id,
                                 fund_trans["account_id"],
                                 amount,
                                 amount_cny,
+                                ent_currency_id,
                             ),
                         )
 
@@ -736,55 +752,45 @@ class TransactionCRUD:
                         cursor.execute(
                             """
                             INSERT INTO fund_transaction_entries 
-                            (fund_transaction_id, account_id, side, amount, amount_cny)
-                            VALUES (?, ?, 'credit', ?, ?)
+                            (fund_transaction_id, account_id, side, amount, amount_cny, currency_id, subject_type)
+                            VALUES (?, ?, 'credit', ?, ?, ?, 'cash')
                         """,
                             (
                                 transaction_id,
                                 fund_trans["target_account_id"],
                                 amount,
                                 amount_cny,
+                                ent_currency_id,
                             ),
                         )
                     elif fund_trans.get("account_id"):
                         cursor.execute(
                             """
                             INSERT INTO fund_transaction_entries 
-                            (fund_transaction_id, account_id, side, amount, amount_cny)
-                            VALUES (?, ?, 'credit', ?, ?)
+                            (fund_transaction_id, account_id, side, amount, amount_cny, currency_id, subject_type)
+                            VALUES (?, ?, 'credit', ?, ?, ?, 'cash')
                         """,
                             (
                                 transaction_id,
                                 fund_trans["account_id"],
                                 amount,
                                 amount_cny,
+                                ent_currency_id,
                             ),
                         )
                 else:
                     raise ValueError("必须提供 entries 或兼容的旧格式字段")
             else:
-                # 验证借贷平衡
-                debit_total = sum(e["amount"] for e in entries if e["side"] == "debit")
-                credit_total = sum(
-                    e["amount"] for e in entries if e["side"] == "credit"
-                )
-
-                if abs(debit_total - credit_total) > 0.01:  # 允许小的浮点误差
-                    raise ValueError(
-                        f"借贷不平衡：借方总额 {debit_total}，贷方总额 {credit_total}"
-                    )
-
-                # 插入分录明细（subject_type 默认 cash，开仓/平仓在 add_transaction_with_fund 中单独设置）
-                _row = (
-                    cursor.execute(
-                        "SELECT code FROM currencies WHERE id=?", (currency_id,)
-                    ).fetchone()
-                    if currency_id
-                    else None
-                )
-                curr_code = _row[0] if _row else "CNY"
+                # 多借多贷：每笔分录可有独立币种，按人民币折算后校验借贷平衡
                 fund_date = fund_trans.get("date")
+                debit_cny = 0.0
+                credit_cny = 0.0
+                entries_with_cny = []
                 for entry in entries:
+                    entry_curr = entry.get("currency", fund_trans.get("currency", "CNY"))
+                    ent_currency_id, curr_code = _resolve_currency(cursor, entry_curr)
+                    if ent_currency_id is None:
+                        raise ValueError(f"分录币种无法解析: {entry_curr}")
                     amount = entry["amount"]
                     if fund_date:
                         amount_cny = analytics.convert_to_cny_at_date(
@@ -792,19 +798,33 @@ class TransactionCRUD:
                         )
                     else:
                         amount_cny = analytics.convert_to_cny(amount, curr_code)
-                    subject_type = entry.get("subject_type", "cash")
+                    if entry["side"] == "debit":
+                        debit_cny += amount_cny
+                    else:
+                        credit_cny += amount_cny
+                    entries_with_cny.append(
+                        (entry["account_id"], entry["side"], amount, amount_cny, entry.get("subject_type", "cash"), ent_currency_id)
+                    )
+
+                if abs(debit_cny - credit_cny) > 0.01:
+                    raise ValueError(
+                        f"借贷不平衡（按人民币折算）：借方 {debit_cny:.2f}，贷方 {credit_cny:.2f}"
+                    )
+
+                for account_id, side, amount, amount_cny, subject_type, ent_currency_id in entries_with_cny:
                     cursor.execute(
                         """
                         INSERT INTO fund_transaction_entries 
-                        (fund_transaction_id, account_id, side, amount, amount_cny, subject_type)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        (fund_transaction_id, account_id, side, amount, amount_cny, currency_id, subject_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
                             transaction_id,
-                            entry["account_id"],
-                            entry["side"],
+                            account_id,
+                            side,
                             amount,
                             amount_cny,
+                            ent_currency_id,
                             subject_type,
                         ),
                     )
