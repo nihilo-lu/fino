@@ -124,10 +124,23 @@ def create_app(config_path: str | None = None) -> Flask:
             app.register_blueprint(cloudreve_bp)
 
         # 5.1 插件禁用检查：禁用后即时生效，请求对应路由返回 404
-        _PLUGIN_ROUTES = {
-            "/api/ai": "fino-ai-chat",
-            "/api/cloudreve": "fino-cloudreve",
-        }
+        # 从已安装插件动态生成路由映射
+        _PLUGIN_ROUTES = {}
+        try:
+            installed = app.plugin_manager.discover_installed()
+            for item in installed:
+                manifest = item.get("manifest", {})
+                # 从 manifest 获取 API 前缀
+                if manifest.get("api_prefix"):
+                    _PLUGIN_ROUTES[manifest["api_prefix"]] = item["id"]
+        except Exception:
+            pass
+        # 兜底硬编码（兼容旧配置）
+        if not _PLUGIN_ROUTES:
+            _PLUGIN_ROUTES = {
+                "/api/ai": "fino-ai-chat",
+                "/api/cloudreve": "fino-cloudreve",
+            }
 
         @app.before_request
         def check_plugin_enabled():

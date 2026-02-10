@@ -21,6 +21,7 @@ class Plugin(PluginInterface):
             license="MIT",
             min_fino_version="1.0",
             dependencies=[],
+            api_prefix="/api/ai",
             nav_item=None,
             settings_tab={"id": "ai-chat", "label": "AI 配置", "icon": "smart_toy"},
             floating_widget={"id": "ai-chat-button", "label": "AI 助手"},

@@ -164,42 +164,34 @@ class PluginManager:
 
     def enable_plugin(self, plugin_id: str) -> bool:
         """启用插件"""
+        # 加载插件实例
         plugin = self.load_plugin(plugin_id)
         if not plugin:
             return False
         enabled = self._load_enabled_list()
+        # 检查是否已启用
+        if plugin_id in enabled:
+            return True
         enabled.add(plugin_id)
         if not self._save_enabled_list(enabled):
             return False
         self._enabled.add(plugin_id)
-        if self.app and plugin_id not in self._loaded:
-            try:
-                plugin.register(self.app)
-                if hasattr(plugin, "on_enable"):
-                    plugin.on_enable(self.app)
-                self._loaded[plugin_id] = plugin
-            except Exception as e:
-                logger.exception("插件注册失败 %s: %s", plugin_id, e)
-                # 注册失败则回滚：从 enabled 列表中移除
-                enabled.discard(plugin_id)
-                self._save_enabled_list(enabled)
-                self._enabled.discard(plugin_id)
-                return False
+        # 加载插件实例到 _loaded（用于 get_manifest 等）
+        if plugin_id not in self._loaded:
+            self._loaded[plugin_id] = plugin
         return True
 
     def disable_plugin(self, plugin_id: str) -> bool:
         """禁用插件"""
         enabled = self._load_enabled_list()
+        if plugin_id not in enabled:
+            return True  # 已经是禁用状态
         enabled.discard(plugin_id)
         if not self._save_enabled_list(enabled):
             return False
         self._enabled.discard(plugin_id)
-        if plugin_id in self._loaded:
-            plugin = self._loaded[plugin_id]
-            if hasattr(plugin, "on_disable"):
-                plugin.on_disable(self.app)
-            plugin.unregister(self.app)
-            del self._loaded[plugin_id]
+        # 注意：Flask 无法在运行时注销 blueprint，保持注册但通过 check_plugin_enabled 拦截请求
+        # 保留 _loaded 中的插件实例以供 get_manifest 等查询
         return True
 
     def uninstall_plugin(self, plugin_id: str) -> bool:
@@ -242,22 +234,31 @@ class PluginManager:
             return False
 
     def load_and_register_all(self) -> None:
-        """加载并注册所有已启用的插件"""
+        """加载并注册所有已安装的插件（蓝图一次性注册，通过 enabled 列表控制访问）"""
         enabled = self._load_enabled_list()
         self._enabled = enabled
-        for plugin_id in enabled:
-            plugin = self.load_plugin(plugin_id)
+        installed = self.discover_installed()
+        for item in installed:
+            plugin_id = item["id"]
+            plugin = self._load_plugin_from_path(item["path"], item.get("name", plugin_id))
             if plugin:
                 self._loaded[plugin_id] = plugin
-                plugin.register(self.app)
-                logger.info("已加载插件: %s", plugin_id)
+                # 注册 blueprint（所有已安装插件都注册，禁用通过中间件拦截）
+                try:
+                    plugin.register(self.app)
+                    logger.info("已加载插件: %s", plugin_id)
+                except Exception as e:
+                    logger.exception("插件注册失败 %s: %s", plugin_id, e)
             else:
                 logger.warning("插件 %s 加载失败，已跳过", plugin_id)
 
     def get_registered_manifests(self) -> list[dict]:
-        """获取当前已注册插件的 manifest 列表"""
+        """获取当前已启用插件的 manifest 列表"""
         result = []
+        enabled = self._load_enabled_list()
         for plugin_id, plugin in self._loaded.items():
+            if plugin_id not in enabled:
+                continue
             m = plugin.get_manifest()
             d = m.to_dict() if hasattr(m, "to_dict") else m
             d["enabled"] = True

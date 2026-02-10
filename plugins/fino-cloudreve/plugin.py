@@ -21,6 +21,7 @@ class Plugin(PluginInterface):
             license="MIT",
             min_fino_version="1.0",
             dependencies=[],
+            api_prefix="/api/cloudreve",
             nav_item={"id": "cloud-storage", "label": "网盘", "icon": "cloud"},
             settings_tab={"id": "cloudreve", "label": "网盘", "icon": "cloud"},
             floating_widget=None,

@@ -26,6 +26,8 @@ class PluginManifest:
     license: str = ""  # 许可证
     min_fino_version: str = ""  # 最低 Fino 版本要求
     dependencies: list[str] = field(default_factory=list)  # 依赖的其他插件 id
+    # 插件路由前缀，用于禁用检查
+    api_prefix: str = ""
     # 前端扩展
     nav_item: Optional[dict] = None  # 侧边栏入口，如 {"id": "cloud-storage", "label": "网盘", "icon": "cloud"}
     settings_tab: Optional[dict] = None  # 设置页 Tab，如 {"id": "cloudreve", "label": "网盘", "icon": "cloud"}
@@ -45,6 +47,7 @@ class PluginManifest:
             "license": self.license,
             "min_fino_version": self.min_fino_version,
             "dependencies": self.dependencies,
+            "api_prefix": self.api_prefix,
             "nav_item": self.nav_item,
             "settings_tab": self.settings_tab,
             "floating_widget": self.floating_widget,
