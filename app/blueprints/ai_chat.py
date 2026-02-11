@@ -10,6 +10,7 @@ from flask import Blueprint, request, current_app, Response
 from flask import session
 
 from app.utils import api_success, api_error
+from app.auth_middleware import get_token_from_request, verify_token
 
 ai_bp = Blueprint("ai_chat", __name__)
 
@@ -63,6 +64,33 @@ def _check_admin():
     return True, None
 
 
+def _get_current_username():
+    """当前用户名：优先 Bearer Token，否则 Session"""
+    token = get_token_from_request()
+    if token:
+        payload = verify_token(token)
+        if payload:
+            return payload.get("username")
+    return session.get("username")
+
+
+def _get_current_user_api_token():
+    """获取当前用户的 API Token（用于沙箱内请求本应用 API）"""
+    username = _get_current_username()
+    if not username:
+        return None, "未登录"
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
+        user = (cfg.get("credentials") or {}).get("usernames") or {}
+        user = user.get(username) or {}
+        token = user.get("api_token")
+        return token, None
+    except Exception as e:
+        logging.exception("Get api_token error")
+        return None, str(e)
+
+
 @ai_bp.route("/api/ai/config", methods=["GET"])
 def get_ai_config():
     """获取 AI 配置（仅管理员，API Key 掩码）"""
@@ -113,6 +141,44 @@ def save_ai_config():
     return api_success(message="AI 配置已保存")
 
 
+@ai_bp.route("/api/ai/execute", methods=["POST"])
+def execute_sandbox():
+    """
+    沙箱执行 Python 代码。需登录；使用当前用户的 API Token 请求本应用 API。
+    请求体: { "code": "..." }
+    代码中可使用: requests (仅限请求本应用)、json、API_BASE，并将最终结果赋给 result。
+    """
+    api_token, err = _get_current_user_api_token()
+    if err:
+        return api_error(err, 401 if "未登录" in err else 500)
+    body = request.get_json() or {}
+    code = body.get("code") or ""
+    if not code.strip():
+        return api_error("code 不能为空", 400)
+    api_base = request.url_root.rstrip("/")
+    username = _get_current_username() or ""
+    from app.sandbox import run_python_sandbox
+    out = run_python_sandbox(code=code, api_base=api_base, api_token=api_token or "", username=username)
+    if out.get("error") and not out.get("ok"):
+        return api_success(data=out, message=out["error"])  # 仍返回 200，便于前端展示 stdout/error
+    return api_success(data=out)
+
+
+# 沙箱工具定义（OpenAI tools 格式）
+EXECUTE_PYTHON_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "execute_python",
+        "description": "在沙箱中执行 Python 代码，用于调用本应用 API 获取账本、账户、交易、组合、收益等数据。可用变量：requests、json、API_BASE、CURRENT_USERNAME（当前登录用户名，调用需 username 的接口时必须使用，例如 requests.get(f\"/api/ledgers?username={CURRENT_USERNAME}\")）。请将需要返回的结果赋给变量 result。",
+        "parameters": {
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "要执行的 Python 代码"}},
+            "required": ["code"],
+        },
+    },
+}
+
+
 @ai_bp.route("/api/ai/chat", methods=["POST"])
 def chat():
     """
@@ -122,6 +188,7 @@ def chat():
     body = request.get_json() or {}
     messages = body.get("messages", [])
     stream = body.get("stream", True)
+    use_tools = body.get("use_tools", False)
 
     if not messages:
         return api_error("messages 不能为空", 400)
@@ -159,6 +226,18 @@ def chat():
                 messages[i] = {**messages[i], "content": parts}
                 break
 
+    if use_tools:
+        try:
+            content, thinking, executions = _chat_with_tools(base_url, api_key, model, messages)
+            return api_success(data={
+                "content": content,
+                "thinking": thinking or "",
+                "executions": executions or [],
+            })
+        except requests.exceptions.RequestException as e:
+            logging.exception("AI chat with tools failed")
+            return api_error(str(e) or "请求失败", 500)
+
     url = f"{base_url}/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -177,6 +256,61 @@ def chat():
     except requests.exceptions.RequestException as e:
         logging.exception("AI chat request failed")
         return api_error(str(e) or "请求失败", 500)
+
+
+def _chat_with_tools(base_url: str, api_key: str, model: str, messages: list, max_rounds: int = 5):
+    """带 execute_python 工具的对话：非流式，遇到 tool_calls 则执行沙箱并继续请求。返回 (content, thinking, executions)。"""
+    from app.sandbox import run_python_sandbox
+    url = f"{base_url}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    api_token, err = _get_current_user_api_token()
+    if err or not api_token:
+        raise RuntimeError(err or "未登录或未生成 API Token，无法使用沙箱")
+    api_base = request.url_root.rstrip("/")
+    username = _get_current_username() or ""
+    current = list(messages)
+    last_thinking = ""
+    executions = []
+    for _ in range(max_rounds):
+        payload = {"model": model, "messages": current, "stream": False, "tools": [EXECUTE_PYTHON_TOOL]}
+        resp = requests.post(url, headers=headers, json=payload, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        if not choices:
+            return "模型返回空响应", last_thinking, executions
+        msg = choices[0].get("message", {})
+        content = msg.get("content") or ""
+        last_thinking = msg.get("reasoning_content") or ""
+        tool_calls = msg.get("tool_calls") or []
+        if not tool_calls:
+            return content, last_thinking, executions
+        current.append(msg)
+        for tc in tool_calls:
+            tid = tc.get("id") or ""
+            fn = tc.get("function") or {}
+            name = fn.get("name") or ""
+            args_str = fn.get("arguments") or "{}"
+            if name != "execute_python":
+                current.append({"role": "tool", "tool_call_id": tid, "content": "未实现的工具"})
+                continue
+            try:
+                args = json.loads(args_str)
+                code = (args.get("code") or "").strip()
+            except (json.JSONDecodeError, TypeError):
+                current.append({"role": "tool", "tool_call_id": tid, "content": json.dumps({"ok": False, "error": "参数无效"})})
+                executions.append({"code": "", "ok": False, "stdout": "", "error": "参数无效", "result": None})
+                continue
+            out = run_python_sandbox(code=code, api_base=api_base, api_token=api_token, username=username, timeout=25)
+            current.append({"role": "tool", "tool_call_id": tid, "content": json.dumps(out)})
+            executions.append({
+                "code": code,
+                "ok": out.get("ok", False),
+                "stdout": out.get("stdout") or "",
+                "error": out.get("error"),
+                "result": out.get("result"),
+            })
+    return "达到最大工具调用轮数", last_thinking, executions
 
 
 def _stream_response(url, headers, payload):

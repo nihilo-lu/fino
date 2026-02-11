@@ -13,7 +13,8 @@ const MIN_HEIGHT = 300
 const MAX_WIDTH_RATIO = 0.9
 const MAX_HEIGHT_RATIO = 0.85
 
-const SYSTEM_PROMPT = `你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。`
+const SYSTEM_PROMPT = `你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。
+当用户询问账本、账户、交易、持仓、收益等数据且已开启「调用数据」时，你可使用 execute_python 工具在沙箱中执行 Python 调用本应用 API。代码中可用 requests、json、API_BASE、CURRENT_USERNAME（当前登录用户名，调用需 username 的接口时必传，如 /api/ledgers?username= 等）。请将需要返回的结果赋给变量 result。`
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024 // 4MB
@@ -64,6 +65,7 @@ export default {
     const attachments = ref([]) // { type: 'image'|'file', data?, mime?, name?, text?, preview? }
     const thinkingCollapsed = ref({}) // idx -> true 表示折叠
     const aiConfig = ref({ avatar_url: '', show_thinking: true })
+    const useToolsEnabled = ref(false)
     const isRecording = ref(false)
     const voiceSupport = ref(false)
     let recognition = null
@@ -88,6 +90,20 @@ export default {
 
     const toggleThinking = (idx) => {
       thinkingCollapsed.value = { ...thinkingCollapsed.value, [idx]: !thinkingCollapsed.value[idx] }
+    }
+    const executionsCollapsed = ref({})
+    const toggleExecutions = (idx) => {
+      executionsCollapsed.value = { ...executionsCollapsed.value, [idx]: !executionsCollapsed.value[idx] }
+    }
+    const formatResultPreview = (r) => {
+      if (r === null || r === undefined) return '—'
+      if (typeof r === 'string') return r.length > 500 ? r.slice(0, 500) + '…' : r
+      try {
+        const s = JSON.stringify(r)
+        return s.length > 500 ? s.slice(0, 500) + '…' : s
+      } catch {
+        return String(r)
+      }
     }
 
     const loadWindowPosition = () => {
@@ -370,6 +386,7 @@ export default {
       chatMessages.unshift({ role: 'system', content: SYSTEM_PROMPT })
       chatMessages.push({ role: 'user', content: userContent })
 
+      const useTools = useToolsEnabled.value
       try {
         const response = await fetch(`${API_BASE}/ai/chat`, {
           method: 'POST',
@@ -377,7 +394,8 @@ export default {
           credentials: 'include',
           body: JSON.stringify({
             messages: chatMessages,
-            stream: true,
+            stream: !useTools,
+            use_tools: useTools,
             attachments: currentAttachments
           })
         })
@@ -387,34 +405,40 @@ export default {
           throw new Error(err.error || '请求失败')
         }
 
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        if (!reader) throw new Error('无法读取响应')
-
-        let buffer = ''
-        assistantMsg.streaming = true
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.type === 'thinking' && data.content) {
-                  assistantMsg.thinking = (assistantMsg.thinking || '') + data.content
-                } else if (data.type === 'content' && data.content) {
-                  assistantMsg.content = (assistantMsg.content || '') + data.content
-                }
-              } catch {}
+        if (useTools) {
+          const data = await response.json().catch(() => ({}))
+          // 后端 api_success(data=dict) 会合并到顶层
+          assistantMsg.content = data.content ?? data.data?.content ?? ''
+          assistantMsg.thinking = data.thinking ?? data.data?.thinking ?? ''
+          assistantMsg.executions = data.executions ?? data.data?.executions ?? []
+        } else {
+          const reader = response.body?.getReader()
+          const decoder = new TextDecoder()
+          if (!reader) throw new Error('无法读取响应')
+          let buffer = ''
+          assistantMsg.streaming = true
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+                  if (data.type === 'thinking' && data.content) {
+                    assistantMsg.thinking = (assistantMsg.thinking || '') + data.content
+                  } else if (data.type === 'content' && data.content) {
+                    assistantMsg.content = (assistantMsg.content || '') + data.content
+                  }
+                } catch {}
+              }
             }
+            await nextTick()
+            await new Promise(r => setTimeout(r, 0))
+            scrollToBottom()
           }
-          await nextTick()
-          await new Promise(r => setTimeout(r, 0))
-          scrollToBottom()
         }
       } catch (e) {
         assistantMsg.content = '抱歉，发生错误：' + (e.message || '请求失败')
@@ -459,6 +483,9 @@ export default {
       isRecording,
       voiceSupport,
       toggleThinking,
+      toggleExecutions,
+      formatResultPreview,
+      executionsCollapsed,
       removeAttachment,
       triggerFileInput,
       startVoiceInput,
@@ -469,6 +496,7 @@ export default {
       toggleMaximize,
       scrollToBottom,
       defaultAvatarUrl,
+      useToolsEnabled,
       windowStyle,
       isDragging,
       onHeaderPointerDown,
@@ -537,6 +565,28 @@ export default {
                   </button>
                   <div v-if="!thinkingCollapsed[idx]" class="ai-chat-thinking-text">{{ msg.thinking }}</div>
                 </div>
+                <div v-if="msg.executions && msg.executions.length" class="ai-chat-executions">
+                  <button type="button" class="ai-chat-executions-toggle" @click="toggleExecutions(idx)">
+                    <span class="material-icons">{{ executionsCollapsed[idx] ? 'expand_more' : 'expand_less' }}</span>
+                    <span>已执行代码（{{ msg.executions.length }} 次）</span>
+                  </button>
+                  <div v-if="!executionsCollapsed[idx]" class="ai-chat-exec-list">
+                    <div v-for="(ex, ei) in msg.executions" :key="ei" class="ai-chat-exec-item">
+                      <div class="ai-chat-exec-label">Python #{{ ei + 1 }}</div>
+                      <pre class="ai-chat-exec-code">{{ ex.code || '(无代码)' }}</pre>
+                      <div v-if="ex.ok" class="ai-chat-exec-result">
+                        <span class="ai-chat-exec-result-label">结果</span>
+                        <pre class="ai-chat-exec-result-body">{{ formatResultPreview(ex.result) }}</pre>
+                        <pre v-if="ex.stdout" class="ai-chat-exec-stdout">{{ ex.stdout }}</pre>
+                      </div>
+                      <div v-else class="ai-chat-exec-error">
+                        <span class="material-icons">error_outline</span>
+                        {{ ex.error || '执行失败' }}
+                        <pre v-if="ex.stdout" class="ai-chat-exec-stdout">{{ ex.stdout }}</pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="ai-chat-response">{{ msg.content }}{{ msg.streaming ? '▌' : '' }}</div>
               </template>
             </div>
@@ -544,6 +594,10 @@ export default {
         </div>
       </div>
       <div class="ai-chat-input-area">
+        <label class="ai-chat-tools-toggle">
+          <input type="checkbox" v-model="useToolsEnabled" />
+          <span>允许助手调用数据（沙箱执行 Python，需已生成 API Token）</span>
+        </label>
         <div v-if="attachments.length" class="ai-chat-attach-list">
           <template v-for="(att, idx) in attachments" :key="idx">
             <span v-if="att.type === 'image' && att.preview" class="ai-chat-attach-thumb">
