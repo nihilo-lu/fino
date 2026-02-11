@@ -16,7 +16,8 @@ export default {
       api_key: '',
       model: 'gpt-4o-mini',
       show_thinking: true,
-      context_messages: 20
+      context_messages: 20,
+      avatar_url: ''
     })
     const aiConfigSaving = ref(false)
     const cloudreveConfig = ref({ enabled: false })
@@ -205,6 +206,11 @@ export default {
               <div class="form-group">
                 <label>上下文记忆条数</label>
                 <input v-model.number="aiConfig.context_messages" type="number" min="1" max="100" placeholder="20">
+              </div>
+              <div class="form-group">
+                <label>AI 头像 URL</label>
+                <input v-model="aiConfig.avatar_url" type="url" placeholder="https://...（留空使用默认图标）">
+                <p class="form-hint">设置后将在聊天窗口标题和助手消息旁显示该头像。</p>
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" :disabled="aiConfigSaving">

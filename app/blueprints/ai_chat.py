@@ -19,6 +19,7 @@ _DEFAULT_AI = {
     "model": "gpt-4o-mini",
     "show_thinking": True,
     "context_messages": 20,
+    "avatar_url": "",  # AI 头像 URL，空则使用默认
 }
 
 
@@ -75,6 +76,7 @@ def get_ai_config():
         "model": cfg.get("model", _DEFAULT_AI["model"]),
         "show_thinking": cfg.get("show_thinking", True),
         "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
+        "avatar_url": cfg.get("avatar_url", "") or "",
     }
     return api_success(data=out)
 
@@ -104,6 +106,8 @@ def save_ai_config():
             cfg["context_messages"] = max(1, min(100, n))
         except (ValueError, TypeError):
             pass
+    if "avatar_url" in body:
+        cfg["avatar_url"] = (body["avatar_url"] or "").strip()
     if not _save_ai_config(cfg):
         return api_error("保存配置失败", 500)
     return api_success(message="AI 配置已保存")
@@ -135,6 +139,25 @@ def chat():
     system_msg = [messages[0]] if messages and messages[0].get("role") == "system" else []
     rest = messages[1:] if system_msg else messages
     messages = system_msg + rest[-context_messages:] if context_messages > 0 else system_msg + rest
+
+    # 本轮的附件（图片等）注入到最后一条 user 消息
+    attachments = body.get("attachments") or []
+    if attachments and messages:
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get("role") == "user":
+                text = messages[i].get("content") or ""
+                if isinstance(text, list):
+                    text = "".join(
+                        p.get("text", "") for p in text if isinstance(p, dict) and p.get("type") == "text"
+                    )
+                parts = [{"type": "text", "text": text or " "}]
+                for att in attachments:
+                    if att.get("type") == "image" and att.get("data"):
+                        mime = att.get("mime") or "image/png"
+                        url = f"data:{mime};base64,{att['data']}"
+                        parts.append({"type": "image_url", "image_url": {"url": url}})
+                messages[i] = {**messages[i], "content": parts}
+                break
 
     url = f"{base_url}/chat/completions"
     headers = {
