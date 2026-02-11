@@ -1,7 +1,7 @@
 /**
  * AI 聊天窗口 - 支持流式响应与思维链显示
  */
-import { ref, watch, nextTick } from 'vue'
+import { ref, reactive, watch, nextTick } from 'vue'
 import { API_BASE } from '../utils/api.js'
 
 const SYSTEM_PROMPT = `你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。`
@@ -51,12 +51,13 @@ export default {
       inputText.value = ''
       loading.value = true
 
-      const assistantMsg = {
+      // 使用 reactive 保证流式更新时对 content/thinking 的修改能触发视图更新
+      const assistantMsg = reactive({
         role: 'assistant',
         content: '',
         thinking: '',
         streaming: true
-      }
+      })
       messages.value.push(assistantMsg)
       scrollToBottom()
 
@@ -105,6 +106,9 @@ export default {
               } catch {}
             }
           }
+          // 让出事件循环，使 Vue 能刷新 DOM，否则批量更新会导致整段内容结束时才渲染
+          await nextTick()
+          await new Promise(r => setTimeout(r, 0))
           scrollToBottom()
         }
       } catch (e) {
