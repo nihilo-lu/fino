@@ -31,11 +31,12 @@ pre-authorized:
   emails: []
 lab:
   ai:
-    base_url: https://api.openai.com/v1
-    api_key: ''
-    model: gpt-4o-mini
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api_key: sk-d7e59826b1424aa8bc187679e3a55cc3
+    model: qwen-plus
     show_thinking: true
     context_messages: 20
+    avatar_url: ''
   cloudreve:
     enabled: true
     verify_ssl: true

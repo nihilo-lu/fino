@@ -17,7 +17,8 @@ export default {
       model: 'gpt-4o-mini',
       show_thinking: true,
       context_messages: 20,
-      avatar_url: ''
+      avatar_url: '',
+      system_prompt: ''
     })
     const aiConfigSaving = ref(false)
     const cloudreveConfig = ref({ enabled: false })
@@ -211,6 +212,11 @@ export default {
                 <label>AI 头像 URL</label>
                 <input v-model="aiConfig.avatar_url" type="url" placeholder="https://...（留空使用默认图标）">
                 <p class="form-hint">设置后将在聊天窗口标题和助手消息旁显示该头像。</p>
+              </div>
+              <div class="form-group">
+                <label>系统提示词</label>
+                <textarea v-model="aiConfig.system_prompt" rows="6" placeholder="设定 AI 助手的角色与行为，留空使用默认提示词。"></textarea>
+                <p class="form-hint">用于设定助手身份与回答风格，对话时会作为 system 消息发送给模型。</p>
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" :disabled="aiConfigSaving">

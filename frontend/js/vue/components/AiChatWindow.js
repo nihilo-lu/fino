@@ -13,7 +13,8 @@ const MIN_HEIGHT = 300
 const MAX_WIDTH_RATIO = 0.9
 const MAX_HEIGHT_RATIO = 0.85
 
-const SYSTEM_PROMPT = `你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。
+// 仅作未拉取到配置时的兜底，正常从插件配置（api/ai/config）的 system_prompt 读取
+const DEFAULT_SYSTEM_PROMPT = `你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。
 当用户询问账本、账户、交易、持仓、收益等数据且已开启「调用数据」时，你可使用 execute_python 工具在沙箱中执行 Python 调用本应用 API。代码中可用 requests、json、API_BASE、CURRENT_USERNAME（当前登录用户名，调用需 username 的接口时必传，如 /api/ledgers?username= 等）。请将需要返回的结果赋给变量 result。`
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -64,7 +65,7 @@ export default {
     const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
     const attachments = ref([]) // { type: 'image'|'file', data?, mime?, name?, text?, preview? }
     const thinkingCollapsed = ref({}) // idx -> true 表示折叠
-    const aiConfig = ref({ avatar_url: '', show_thinking: true })
+    const aiConfig = ref({ avatar_url: '', show_thinking: true, system_prompt: '' })
     const useToolsEnabled = ref(false)
     const isRecording = ref(false)
     const voiceSupport = ref(false)
@@ -82,8 +83,11 @@ export default {
       try {
         const res = await fetch(`${API_BASE}/ai/config`, { credentials: 'include' })
         const data = await res.json().catch(() => ({}))
-        if (res.ok && data?.data) {
-          aiConfig.value = { ...aiConfig.value, ...data.data }
+        if (res.ok) {
+          const payload = data?.data ?? data
+          if (payload && typeof payload === 'object') {
+            aiConfig.value = { ...aiConfig.value, ...payload }
+          }
         }
       } catch (_) {}
     }
@@ -383,7 +387,8 @@ export default {
         role: m.role,
         content: typeof m.content === 'string' ? m.content : (m.content && m.content.text) || ''
       }))
-      chatMessages.unshift({ role: 'system', content: SYSTEM_PROMPT })
+      const systemPrompt = (aiConfig.value.system_prompt || '').trim() || DEFAULT_SYSTEM_PROMPT
+      chatMessages.unshift({ role: 'system', content: systemPrompt })
       chatMessages.push({ role: 'user', content: userContent })
 
       const useTools = useToolsEnabled.value

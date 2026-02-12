@@ -14,13 +14,17 @@ from app.auth_middleware import get_token_from_request, verify_token
 
 ai_bp = Blueprint("ai_chat", __name__)
 
+_DEFAULT_SYSTEM_PROMPT = """你是一个投资理财助手，帮助用户分析投资组合、理解收益数据、给出合理建议。回答要简洁专业，适当使用数据支撑。
+当用户询问账本、账户、交易、持仓、收益等数据且已开启「调用数据」时，你可使用 execute_python 工具在沙箱中执行 Python 调用本应用 API。代码中可用 requests、json、API_BASE、CURRENT_USERNAME（当前登录用户名，调用需 username 的接口时必传，如 /api/ledgers?username= 等）。请将需要返回的结果赋给变量 result。"""
+
 _DEFAULT_AI = {
     "base_url": "https://api.openai.com/v1",
     "api_key": "",
     "model": "gpt-4o-mini",
     "show_thinking": True,
     "context_messages": 20,
-    "avatar_url": "",  # AI 头像 URL，空则使用默认
+    "avatar_url": "",
+    "system_prompt": _DEFAULT_SYSTEM_PROMPT,
 }
 
 
@@ -91,21 +95,35 @@ def _get_current_user_api_token():
         return None, str(e)
 
 
+def _is_admin():
+    ok, _ = _check_admin()
+    return ok
+
+
 @ai_bp.route("/api/ai/config", methods=["GET"])
 def get_ai_config():
-    """获取 AI 配置（仅管理员，API Key 掩码）"""
-    ok, err = _check_admin()
-    if not ok:
-        return api_error(err, 401 if "未登录" in err else 403)
+    """获取 AI 配置：未登录 403；管理员返回完整配置（API Key 掩码）；非管理员仅返回聊天用公开项（含 system_prompt）"""
+    if not _get_current_username():
+        return api_error("未登录", 401)
     cfg = _get_ai_config()
-    out = {
-        "base_url": cfg.get("base_url", _DEFAULT_AI["base_url"]),
-        "api_key": "***" if cfg.get("api_key") else "",
-        "model": cfg.get("model", _DEFAULT_AI["model"]),
-        "show_thinking": cfg.get("show_thinking", True),
-        "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
-        "avatar_url": cfg.get("avatar_url", "") or "",
-    }
+    if _is_admin():
+        out = {
+            "base_url": cfg.get("base_url", _DEFAULT_AI["base_url"]),
+            "api_key": "***" if cfg.get("api_key") else "",
+            "model": cfg.get("model", _DEFAULT_AI["model"]),
+            "show_thinking": cfg.get("show_thinking", True),
+            "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
+            "avatar_url": cfg.get("avatar_url", "") or "",
+            "system_prompt": cfg.get("system_prompt") or _DEFAULT_SYSTEM_PROMPT,
+        }
+    else:
+        out = {
+            "model": cfg.get("model", _DEFAULT_AI["model"]),
+            "show_thinking": cfg.get("show_thinking", True),
+            "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
+            "avatar_url": cfg.get("avatar_url", "") or "",
+            "system_prompt": cfg.get("system_prompt") or _DEFAULT_SYSTEM_PROMPT,
+        }
     return api_success(data=out)
 
 
@@ -136,6 +154,8 @@ def save_ai_config():
             pass
     if "avatar_url" in body:
         cfg["avatar_url"] = (body["avatar_url"] or "").strip()
+    if "system_prompt" in body:
+        cfg["system_prompt"] = (body["system_prompt"] or "").strip() or _DEFAULT_SYSTEM_PROMPT
     if not _save_ai_config(cfg):
         return api_error("保存配置失败", 500)
     return api_success(message="AI 配置已保存")
