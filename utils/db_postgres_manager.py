@@ -146,6 +146,7 @@ class PostgreSQLManager:
         except ImportError:
             raise ImportError("使用 PostgreSQL 需要安装 psycopg2: pip install psycopg2-binary")
 
+        self.db_type = "postgresql"
         self._host = host
         self._port = port
         self._database = database
@@ -428,6 +429,31 @@ class PostgreSQLManager:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_cloudreve_bindings_username ON cloudreve_bindings(username)')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_chat_history (
+                username VARCHAR(255) PRIMARY KEY,
+                messages TEXT NOT NULL DEFAULT '[]',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                title VARCHAR(500) NOT NULL DEFAULT '新对话',
+                messages TEXT NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ai_chat_sessions_username ON ai_chat_sessions(username)')
+        # 将旧单会话历史迁入一条会话（每个用户至多一条）
+        cursor.execute('''
+            INSERT INTO ai_chat_sessions (username, title, messages, created_at, updated_at)
+            SELECT h.username, '默认对话', h.messages, COALESCE(h.updated_at, CURRENT_TIMESTAMP), COALESCE(h.updated_at, CURRENT_TIMESTAMP)
+            FROM ai_chat_history h
+            WHERE NOT EXISTS (SELECT 1 FROM ai_chat_sessions s WHERE s.username = h.username)
+        ''')
         self.conn.commit()
 
     def _init_default_data(self):

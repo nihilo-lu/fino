@@ -309,20 +309,11 @@ def index():
 @main_bp.route("/analysis")
 @main_bp.route("/settings")
 @main_bp.route("/api-docs")
+@main_bp.route("/chat")
 def spa_pages():
     if current_app.config.get("API_ONLY"):
         return jsonify({"error": "Not found"}), 404
     return _render_index(_get_pwa_config())
-
-
-@main_bp.route("/ai-chat-test")
-def ai_chat_test_page():
-    """独立 AI 助手流式传输测试页，用于排查流式响应是否被缓冲"""
-    if current_app.config.get("API_ONLY"):
-        return jsonify({"error": "Not found"}), 404
-    import os
-    static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
-    return send_from_directory(static_folder, "ai-chat-test.html", mimetype="text/html; charset=utf-8")
 
 
 def _render_index(pwa):

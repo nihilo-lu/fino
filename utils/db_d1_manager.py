@@ -178,6 +178,7 @@ class D1Manager:
     ):
         if not account_id or not database_id or not api_token:
             raise ValueError("D1 需要 account_id、database_id 和 api_token")
+        self.db_type = "d1"
         self._account_id = account_id
         self._database_id = database_id
         self._api_token = api_token
@@ -309,6 +310,19 @@ class D1Manager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
+            """CREATE TABLE IF NOT EXISTS ai_chat_history (
+                username TEXT PRIMARY KEY,
+                messages TEXT NOT NULL DEFAULT '[]',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT '新对话',
+                messages TEXT NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
         ]
         for sql in tables:
             self._execute(sql)
@@ -348,6 +362,23 @@ class D1Manager:
         if "owner_username" not in columns:
             logging.info("迁移 D1：为 ledgers 表添加 owner_username 列")
             self._execute("ALTER TABLE ledgers ADD COLUMN owner_username TEXT DEFAULT ''")
+
+        try:
+            res = self._execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='ai_chat_sessions'"
+            )
+            if not (res.get("results") or []):
+                logging.info("迁移 D1：创建 ai_chat_sessions 表")
+                self._execute("""CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '新对话',
+                    messages TEXT NOT NULL DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""")
+        except Exception:
+            pass
 
         try:
             res = self._execute(

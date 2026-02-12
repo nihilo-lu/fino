@@ -20,6 +20,7 @@ class SQLiteManager:
             db_path: 数据库文件路径
             config_path: 配置文件路径，用于读取 default_exchange_rates 等设置（可选）
         """
+        self.db_type = "sqlite"
         self.db_path = db_path
         self.config_path = config_path
         self.conn: Optional[sqlite3.Connection] = None
@@ -679,6 +680,48 @@ class SQLiteManager:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_cloudreve_bindings_username ON cloudreve_bindings(username)"
             )
+
+        # AI 聊天历史（与账本同库，按用户存储）
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='ai_chat_history'
+        """)
+        if not cursor.fetchone():
+            logging.info("迁移数据库：创建 ai_chat_history 表（AI 聊天历史）")
+            cursor.execute("""
+                CREATE TABLE ai_chat_history (
+                    username TEXT PRIMARY KEY,
+                    messages TEXT NOT NULL DEFAULT '[]',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+        # AI 聊天多会话（独立 chat 页用）
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='ai_chat_sessions'
+        """)
+        if not cursor.fetchone():
+            logging.info("迁移数据库：创建 ai_chat_sessions 表（AI 聊天会话列表）")
+            cursor.execute("""
+                CREATE TABLE ai_chat_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '新对话',
+                    messages TEXT NOT NULL DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_chat_sessions_username ON ai_chat_sessions(username)")
+            # 将旧表数据迁入一条会话
+            cursor.execute("SELECT username, messages, updated_at FROM ai_chat_history")
+            for row in cursor.fetchall():
+                uname, msgs, ut = row[0], row[1] or '[]', row[2] or ''
+                cursor.execute("""
+                    INSERT INTO ai_chat_sessions (username, title, messages, created_at, updated_at)
+                    VALUES (?, '默认对话', ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+                """, (uname, msgs, ut, ut))
 
     def _init_default_data(self):
         """初始化默认数据（仅在首次创建时），币种与汇率使用设置中的默认值"""

@@ -161,6 +161,301 @@ def save_ai_config():
     return api_success(message="AI 配置已保存")
 
 
+def _get_chat_history_db():
+    """获取与账本同库的数据库连接（使用配置中的 sqlite/postgresql）"""
+    from utils.db_config import get_database_config
+    from utils.db_base import get_db_manager
+    cfg = get_database_config(current_app.config.get("CONFIG_PATH"))
+    return get_db_manager(
+        db_type=cfg["type"],
+        db_path=cfg["sqlite"]["path"],
+        pg_host=cfg["postgresql"]["host"],
+        pg_port=cfg["postgresql"]["port"],
+        pg_database=cfg["postgresql"]["database"],
+        pg_user=cfg["postgresql"]["user"],
+        pg_password=cfg["postgresql"]["password"],
+        pg_sslmode=cfg["postgresql"].get("sslmode", "prefer"),
+        d1_account_id=cfg.get("d1", {}).get("account_id"),
+        d1_database_id=cfg.get("d1", {}).get("database_id"),
+        d1_api_token=cfg.get("d1", {}).get("api_token"),
+    )
+
+
+@ai_bp.route("/api/ai/chat/history", methods=["GET"])
+def get_ai_chat_history():
+    """获取当前用户的 AI 聊天历史（与账本同库）"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        if dbm.db_type == "postgresql":
+            cursor.execute(
+                "SELECT messages FROM ai_chat_history WHERE username = %s",
+                (username,),
+            )
+        else:
+            cursor.execute(
+                "SELECT messages FROM ai_chat_history WHERE username = ?",
+                (username,),
+            )
+        row = cursor.fetchone()
+        dbm.close()
+        if not row or not row[0]:
+            return api_success(data={"messages": []})
+        data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+        messages = data if isinstance(data, list) else (data.get("messages") or [])
+        return api_success(data={"messages": messages})
+    except Exception as e:
+        logging.exception("get_ai_chat_history error")
+        return api_error(str(e) or "获取失败", 500)
+
+
+@ai_bp.route("/api/ai/chat/history", methods=["PUT"])
+def save_ai_chat_history():
+    """保存当前用户的 AI 聊天历史（与账本同库）"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    body = request.get_json() or {}
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return api_error("messages 必须为数组", 400)
+    try:
+        payload = json.dumps(messages, ensure_ascii=False)
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        if dbm.db_type == "postgresql":
+            cursor.execute(
+                """
+                INSERT INTO ai_chat_history (username, messages, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (username) DO UPDATE SET
+                    messages = EXCLUDED.messages,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (username, payload),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO ai_chat_history (username, messages, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (username) DO UPDATE SET
+                    messages = excluded.messages,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (username, payload),
+            )
+        conn.commit()
+        dbm.close()
+        return api_success(message="已保存")
+    except Exception as e:
+        logging.exception("save_ai_chat_history error")
+        return api_error(str(e) or "保存失败", 500)
+
+
+# ---------- 多会话 API（独立 chat 页） ----------
+
+@ai_bp.route("/api/ai/chat/sessions", methods=["GET"])
+def list_ai_chat_sessions():
+    """当前用户的会话列表（仅 id、title、时间）"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        if dbm.db_type == "postgresql":
+            cursor.execute(
+                "SELECT id, title, created_at, updated_at FROM ai_chat_sessions WHERE username = %s ORDER BY updated_at DESC",
+                (username,),
+            )
+        else:
+            cursor.execute(
+                "SELECT id, title, created_at, updated_at FROM ai_chat_sessions WHERE username = ? ORDER BY updated_at DESC",
+                (username,),
+            )
+        rows = cursor.fetchall()
+        dbm.close()
+        out = [
+            {
+                "id": r[0],
+                "title": r[1] or "新对话",
+                "created_at": r[2].isoformat() if hasattr(r[2], "isoformat") else str(r[2]) if r[2] else None,
+                "updated_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3]) if r[3] else None,
+            }
+            for r in rows
+        ]
+        return api_success(data=out)
+    except Exception as e:
+        logging.exception("list_ai_chat_sessions error")
+        return api_error(str(e) or "获取失败", 500)
+
+
+@ai_bp.route("/api/ai/chat/sessions", methods=["POST"])
+def create_ai_chat_session():
+    """新建会话"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    body = request.get_json() or {}
+    title = (body.get("title") or "新对话").strip() or "新对话"
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        if dbm.db_type == "postgresql":
+            cursor.execute(
+                "INSERT INTO ai_chat_sessions (username, title, messages) VALUES (%s, %s, '[]') RETURNING id, title, created_at, updated_at",
+                (username, title),
+            )
+            row = cursor.fetchone()
+        else:
+            cursor.execute(
+                "INSERT INTO ai_chat_sessions (username, title, messages) VALUES (?, ?, '[]')",
+                (username, title),
+            )
+            sid = cursor.lastrowid
+            cursor.execute(
+                "SELECT id, title, created_at, updated_at FROM ai_chat_sessions WHERE id = ?",
+                (sid,),
+            )
+            row = cursor.fetchone()
+        conn.commit()
+        dbm.close()
+        if not row:
+            return api_error("创建失败", 500)
+        return api_success(
+            data={
+                "id": row[0],
+                "title": row[1] or "新对话",
+                "created_at": row[2].isoformat() if hasattr(row[2], "isoformat") else str(row[2]) if row[2] else None,
+                "updated_at": row[3].isoformat() if hasattr(row[3], "isoformat") else str(row[3]) if row[3] else None,
+            }
+        )
+    except Exception as e:
+        logging.exception("create_ai_chat_session error")
+        return api_error(str(e) or "创建失败", 500)
+
+
+def _get_session_row(cursor, db_type, session_id, username):
+    if db_type == "postgresql":
+        cursor.execute(
+            "SELECT id, username, title, messages, created_at, updated_at FROM ai_chat_sessions WHERE id = %s AND username = %s",
+            (session_id, username),
+        )
+    else:
+        cursor.execute(
+            "SELECT id, username, title, messages, created_at, updated_at FROM ai_chat_sessions WHERE id = ? AND username = ?",
+            (session_id, username),
+        )
+    return cursor.fetchone()
+
+
+@ai_bp.route("/api/ai/chat/sessions/<int:session_id>", methods=["GET"])
+def get_ai_chat_session(session_id):
+    """获取单条会话（含 messages）"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        row = _get_session_row(cursor, dbm.db_type, session_id, username)
+        dbm.close()
+        if not row:
+            return api_error("会话不存在", 404)
+        data = json.loads(row[3]) if isinstance(row[3], str) else (row[3] or [])
+        messages = data if isinstance(data, list) else (data.get("messages") or [])
+        return api_success(
+            data={
+                "id": row[0],
+                "title": row[2] or "新对话",
+                "messages": messages,
+                "created_at": row[4].isoformat() if hasattr(row[4], "isoformat") else str(row[4]) if row[4] else None,
+                "updated_at": row[5].isoformat() if hasattr(row[5], "isoformat") else str(row[5]) if row[5] else None,
+            }
+        )
+    except Exception as e:
+        logging.exception("get_ai_chat_session error")
+        return api_error(str(e) or "获取失败", 500)
+
+
+@ai_bp.route("/api/ai/chat/sessions/<int:session_id>", methods=["PUT"])
+def update_ai_chat_session(session_id):
+    """更新会话（title 和/或 messages）"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    body = request.get_json() or {}
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        row = _get_session_row(cursor, dbm.db_type, session_id, username)
+        if not row:
+            dbm.close()
+            return api_error("会话不存在", 404)
+        updates = []
+        params = []
+        if "title" in body and body["title"] is not None:
+            updates.append("title = %s" if dbm.db_type == "postgresql" else "title = ?")
+            params.append((body.get("title") or "新对话").strip() or "新对话")
+        if "messages" in body and isinstance(body["messages"], list):
+            payload = json.dumps(body["messages"], ensure_ascii=False)
+            updates.append("messages = %s" if dbm.db_type == "postgresql" else "messages = ?")
+            params.append(payload)
+        if not updates:
+            dbm.close()
+            return api_success(message="无更新")
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.extend([session_id, username])
+        if dbm.db_type == "postgresql":
+            cursor.execute(
+                "UPDATE ai_chat_sessions SET " + ", ".join(updates) + " WHERE id = %s AND username = %s",
+                params,
+            )
+        else:
+            cursor.execute(
+                "UPDATE ai_chat_sessions SET " + ", ".join(updates) + " WHERE id = ? AND username = ?",
+                params,
+            )
+        conn.commit()
+        dbm.close()
+        return api_success(message="已保存")
+    except Exception as e:
+        logging.exception("update_ai_chat_session error")
+        return api_error(str(e) or "保存失败", 500)
+
+
+@ai_bp.route("/api/ai/chat/sessions/<int:session_id>", methods=["DELETE"])
+def delete_ai_chat_session(session_id):
+    """删除会话"""
+    username = _get_current_username()
+    if not username:
+        return api_error("未登录", 401)
+    try:
+        dbm = _get_chat_history_db()
+        conn = dbm.get_connection()
+        cursor = conn.cursor()
+        if dbm.db_type == "postgresql":
+            cursor.execute("DELETE FROM ai_chat_sessions WHERE id = %s AND username = %s", (session_id, username))
+        else:
+            cursor.execute("DELETE FROM ai_chat_sessions WHERE id = ? AND username = ?", (session_id, username))
+        conn.commit()
+        dbm.close()
+        return api_success(message="已删除")
+    except Exception as e:
+        logging.exception("delete_ai_chat_session error")
+        return api_error(str(e) or "删除失败", 500)
+
+
 @ai_bp.route("/api/ai/execute", methods=["POST"])
 def execute_sandbox():
     """

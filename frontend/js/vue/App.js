@@ -19,6 +19,7 @@ import FundModal from './components/FundModal.js'
 import AddLedgerModal from './components/AddLedgerModal.js'
 import AiChatButton from './components/AiChatButton.js'
 import AiChatWindow from './components/AiChatWindow.js'
+import AiChatPage from './components/AiChatPage.js'
 
 const PAGE_TITLES = {
   dashboard: '仪表盘',
@@ -27,7 +28,8 @@ const PAGE_TITLES = {
   analysis: '收益分析',
   'cloud-storage': '网盘',
   settings: '设置',
-  'api-docs': 'API 文档'
+  'api-docs': 'API 文档',
+  chat: 'AI 助手'
 }
 
 const NAV_ITEMS_BASE = [
@@ -58,7 +60,8 @@ components: {
     FundModal,
     AddLedgerModal,
     AiChatButton,
-    AiChatWindow
+    AiChatWindow,
+    AiChatPage
   },
   setup() {
     const { state, actions } = useStore()
@@ -271,6 +274,7 @@ handleLedgerSelect,
 
       <div v-else id="main-page" class="page active">
         <Sidebar
+          v-if="currentPage !== 'chat'"
           :nav-items="navItems"
           :current-page="currentPage"
           :user-name="userName"
@@ -280,12 +284,16 @@ handleLedgerSelect,
           @logout="handleLogout"
           @switch-ledger="handleSwitchLedger"
         />
-        <main class="main-content">
+        <main class="main-content" :class="{ 'main-content-chat': currentPage === 'chat' }">
           <Header
+            v-if="currentPage !== 'chat'"
             :page-title="pageTitle"
             @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
           />
-          <div class="content-area">
+          <div v-if="currentPage === 'chat'" class="content-area content-area-chat">
+            <AiChatPage @close="navigateTo('dashboard')" />
+          </div>
+          <div v-else class="content-area">
             <DashboardView
               v-show="currentPage === 'dashboard'"
               :class="['view', { active: currentPage === 'dashboard' }]"
@@ -337,8 +345,9 @@ handleLedgerSelect,
         @close="handleAddLedgerModalClose"
         @create="handleCreateLedger"
       />
-      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat')" @click="showAiChat = true" />
+      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat') && currentPage !== 'chat'" @click="showAiChat = true" />
       <AiChatWindow
+        v-if="currentPage !== 'chat'"
         :show="showAiChat"
         @close="showAiChat = false"
       />

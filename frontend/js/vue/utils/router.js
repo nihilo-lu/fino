@@ -11,7 +11,8 @@ const PATH_TO_PAGE = {
   '/analysis': 'analysis',
   '/cloud-storage': 'cloud-storage',
   '/settings': 'settings',
-  '/api-docs': 'api-docs'
+  '/api-docs': 'api-docs',
+  '/chat': 'chat'
 }
 
 const PAGE_TO_PATH = {
@@ -21,7 +22,8 @@ const PAGE_TO_PATH = {
   analysis: '/analysis',
   'cloud-storage': '/cloud-storage',
   settings: '/settings',
-  'api-docs': '/api-docs'
+  'api-docs': '/api-docs',
+  chat: '/chat'
 }
 
 export function getPageFromPath() {
