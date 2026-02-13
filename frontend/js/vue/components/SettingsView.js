@@ -1310,7 +1310,7 @@ export default {
       />
       <AddAccountModal
         :show="showAccountModal"
-        :ledgers="state.ledgers"
+        :current-ledger-id="state.currentLedgerId"
         @close="showAccountModal = false"
         @create="onAccountCreate"
       />

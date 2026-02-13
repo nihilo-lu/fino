@@ -4,11 +4,10 @@ export default {
   name: 'AddAccountModal',
   props: {
     show: Boolean,
-    ledgers: { type: Array, default: () => [] }
+    currentLedgerId: { type: [Number, String], default: null }
   },
   emits: ['close', 'create'],
   setup(props, { emit }) {
-    const ledgerId = ref('')
     const name = ref('')
     const type = ref('资产')
     const creating = ref(false)
@@ -18,14 +17,15 @@ export default {
 
     const handleCreate = async () => {
       displayError.value = ''
-      if (!ledgerId.value || !name.value.trim()) {
-        displayError.value = '请选择账本并填写账户名称'
+      const ledgerId = props.currentLedgerId != null ? parseInt(props.currentLedgerId) : null
+      if (!ledgerId || !name.value.trim()) {
+        displayError.value = ledgerId ? '请填写账户名称' : '请先选择账本'
         return
       }
       creating.value = true
       try {
         await emit('create', {
-          ledgerId: parseInt(ledgerId.value),
+          ledgerId,
           name: name.value.trim(),
           type: type.value
         })
@@ -43,7 +43,6 @@ export default {
     }
 
     return {
-      ledgerId,
       name,
       type,
       types,
@@ -64,13 +63,6 @@ export default {
         </div>
         <div class="modal-body">
           <form @submit.prevent="handleCreate">
-            <div class="form-group">
-              <label>所属账本</label>
-              <select v-model="ledgerId" required>
-                <option value="">请选择账本</option>
-                <option v-for="l in ledgers" :key="l.id" :value="l.id">{{ l.name }}</option>
-              </select>
-            </div>
             <div class="form-group">
               <label>账户名称</label>
               <input
