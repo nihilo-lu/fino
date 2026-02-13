@@ -326,14 +326,8 @@ class Analytics:
             self.wac_inventory = WACInventory(enable_exchange_rate=True)
 
         ledger_id = transaction["ledger_id"]
-        # 同时更新 FIFO 和 WAC 库存（保持两者同步，以便切换时数据一致）
-        self.fifo_inventory._process_single_transaction(inventory_row, ledger_id)
-        self.wac_inventory._process_single_transaction(inventory_row, ledger_id)
-
-        # 更新按账本隔离的增量计算追踪ID
-        # 确保 ledger_id 存在于 _last_processed_ids 中
+        # 确保 ledger_id 存在于 _last_processed_ids 中（用于判断库存是否完整）
         if ledger_id not in self._last_processed_ids:
-            # 从 inventory_state 表加载该账本的最新追踪状态
             cursor.execute(
                 "SELECT last_transaction_id FROM inventory_state WHERE ledger_id = ?",
                 (ledger_id,),
@@ -344,10 +338,17 @@ class Analytics:
             else:
                 self._last_processed_ids[ledger_id] = 0
 
-        if transaction_id > self._last_processed_ids.get(ledger_id, 0):
-            self._last_processed_ids[ledger_id] = transaction_id
-            # 立即保存到数据库，确保状态持久化
-            self._save_inventory_state(ledger_id)
+        last_processed = self._last_processed_ids.get(ledger_id, 0)
+        # 若该账本库存可能不完整（如多进程、重启后或首次加仓），先全量重建再同步，避免股数只显示最后一笔
+        if last_processed < transaction_id - 1:
+            self._rebuild_ledger_inventory(ledger_id, force_full=True)
+        else:
+            # 增量：仅把当前交易加入库存
+            self.fifo_inventory._process_single_transaction(inventory_row, ledger_id)
+            self.wac_inventory._process_single_transaction(inventory_row, ledger_id)
+            if transaction_id > last_processed:
+                self._last_processed_ids[ledger_id] = transaction_id
+                self._save_inventory_state(ledger_id)
 
         # 根据账本设置从对应的库存获取数据并更新数据库
         self._sync_position_from_inventory(transaction, account_name)
