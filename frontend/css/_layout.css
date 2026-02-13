@@ -8,6 +8,11 @@
     display: flex;
 }
 
+[data-theme="dark"] #main-page {
+    background: #1c1917;
+    background-image: none;
+}
+
 .sidebar {
     width: 260px;
     background: var(--surface-color);
@@ -45,6 +50,8 @@
     line-height: 1;
 }
 
+[data-theme="dark"] .fino-logo-sidebar .logo-text { color: #e8e4dc; }
+
 .fino-logo-sidebar .logo-tagline {
     font-size: 9px;
     color: #888;
@@ -52,6 +59,8 @@
     text-transform: uppercase;
     margin-top: 6px;
 }
+
+[data-theme="dark"] .fino-logo-sidebar .logo-tagline { color: #a8a29a; }
 
 .user-info {
     padding: 16px 20px;
@@ -129,6 +138,10 @@
     color: var(--primary-color);
 }
 
+[data-theme="dark"] .nav-item.active {
+    background: rgba(232, 228, 220, 0.12);
+}
+
 .nav-item .material-icons {
     font-size: 20px;
 }
@@ -173,14 +186,13 @@
 }
 
 .current-ledger {
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
     font-size: 13px;
     color: var(--text-secondary);
-    background: var(--color-bg-secondary, #f8fafc);
+    background: var(--background-color);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
 }
@@ -195,8 +207,14 @@
     color: var(--text-primary);
 }
 
-.header-actions {
+.header-right {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-actions {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -207,10 +225,14 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     font-size: 14px;
-    background: #fffdfa;
+    background: var(--surface-color);
     color: var(--text-primary);
     min-width: 150px;
     cursor: pointer;
+}
+
+[data-theme="dark"] .select-control {
+    color: #fff;
 }
 
 .select-control:focus {
@@ -223,7 +245,20 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     font-size: 14px;
-    background: #fffdfa;
+    background: var(--surface-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .date-control {
+    color: #fff;
+}
+
+[data-theme="dark"] .date-control::-webkit-datetime-edit {
+    color: #fff;
+}
+
+[data-theme="dark"] .date-control::-webkit-calendar-picker-indicator {
+    filter: invert(1);
 }
 
 .content-area {

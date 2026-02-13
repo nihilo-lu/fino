@@ -1,6 +1,16 @@
 import { reactive, computed } from 'vue'
 import { apiFetch, apiGet, apiPost, apiDelete, API_BASE } from '../utils/api.js'
 
+function getStoredDarkMode() {
+  try { return localStorage.getItem('fino_dark_mode') === '1' } catch (e) { return false }
+}
+
+function applyTheme(isDark) {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.dataset.theme = isDark ? 'dark' : 'light'
+  }
+}
+
 const state = reactive({
   user: null,
   isAuthenticated: false,
@@ -13,7 +23,8 @@ const state = reactive({
   cloudreveBound: false,
   enabledPlugins: [],  // 已启用的插件 id 列表，用于控制 AI 按钮、网盘入口等
   pluginCenterEnabled: true,  // 是否在设置中显示插件中心
-  dashboardRefreshTrigger: 0   // 交易/资金明细变更时递增，供仪表盘 watch 后重新拉取数据
+  dashboardRefreshTrigger: 0,   // 交易/资金明细变更时递增，供仪表盘 watch 后重新拉取数据
+  darkMode: getStoredDarkMode()
 })
 
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
@@ -38,6 +49,12 @@ async function parseJson(response) {
 const actions = {
   setToast,
   showToast,
+
+  toggleDarkMode() {
+    state.darkMode = !state.darkMode
+    try { localStorage.setItem('fino_dark_mode', state.darkMode ? '1' : '0') } catch (e) {}
+    applyTheme(state.darkMode)
+  },
 
   async checkAuth() {
     try {

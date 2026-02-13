@@ -11,7 +11,7 @@
     border-radius: var(--radius-lg);
     padding: 18px 20px;
     box-shadow: var(--shadow-sm);
-    border: 1px solid #e8e2d7;
+    border: 1px solid var(--border-color);
     display: flex;
     align-items: flex-start;
     gap: 16px;
@@ -91,7 +91,7 @@
     background: var(--surface-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    border: 1px solid #e8e2d7;
+    border: 1px solid var(--border-color);
     overflow: hidden;
 }
 
@@ -203,6 +203,20 @@
 
 .settings-tab.active {
     background: var(--primary-color);
+    color: #fff;
+}
+
+[data-theme="dark"] .settings-tab {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .settings-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .settings-tab.active {
+    background: rgba(255, 255, 255, 0.18);
     color: #fff;
 }
 
@@ -322,7 +336,12 @@
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    background: #f1ece2;
+    background: var(--background-color);
+}
+
+[data-theme="dark"] .data-table th {
+    background: #000;
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .data-table td {
@@ -358,6 +377,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+[data-theme="dark"] .toolbar-left {
+    color: #fff;
 }
 
 .pagination {
@@ -536,7 +559,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     font-size: 14px;
-    background: #fffdfa;
+    background: var(--surface-color);
 }
 
 .items-list {
@@ -558,7 +581,7 @@
 .account-group-title {
     font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-secondary, #64748b);
+    color: var(--text-secondary);
     margin-bottom: 10px;
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border-color);

@@ -16,6 +16,11 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+[data-theme="dark"] body {
+    background: #1c1917;
+    background-image: none;
+}
+
 .page {
     display: none;
     min-height: 100vh;

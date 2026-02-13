@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#E8A317">
+    <script>try{var d=localStorage.getItem('fino_dark_mode');if(d==='1')document.documentElement.dataset.theme='dark';}catch(e){}</script>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="投资追踪">
@@ -22,6 +23,10 @@
             background-image: radial-gradient(1000px 620px at 85% 12%, rgba(251, 232, 196, 0.28), transparent 55%),
                               radial-gradient(1200px 800px at 30% 90%, rgba(197, 212, 255, 0.2), transparent 58%),
                               linear-gradient(135deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.06) 60%) !important;
+        }
+        [data-theme="dark"] #login-page, [data-theme="dark"] #register-page {
+            background: #1c1917 !important;
+            background-image: none !important;
         }
         .auth-pages { position: relative; min-height: 100vh; }
         .auth-pages > * { position: absolute; inset: 0; }

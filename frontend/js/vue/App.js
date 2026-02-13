@@ -220,6 +220,7 @@ const handleCreateLedger = async ({ name, description }) => {
 
     return {
       state,
+      actions,
       showRegister,
       currentPage,
       sidebarCollapsed,
@@ -253,6 +254,16 @@ handleLedgerSelect,
   },
   template: `
     <div id="app">
+      <button
+        v-if="!state.isAuthenticated || !state.currentLedgerId"
+        type="button"
+        class="theme-toggle-float btn-icon"
+        :title="state.darkMode ? '切换到日间模式' : '切换到夜间模式'"
+        @click="actions.toggleDarkMode()"
+        aria-label="切换夜间模式"
+      >
+        <span class="material-icons">{{ state.darkMode ? 'light_mode' : 'dark_mode' }}</span>
+      </button>
       <div v-if="!state.isAuthenticated" :class="['auth-pages', { 'show-register': showRegister }]">
         <LoginPage
           v-show="!showRegister"
