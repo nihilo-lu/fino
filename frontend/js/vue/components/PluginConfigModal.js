@@ -198,11 +198,20 @@ export default {
                 <label>模型名称</label>
                 <input v-model="aiConfig.model" type="text" placeholder="gpt-4o-mini">
               </div>
-              <div class="form-group checkbox-group">
-                <label class="checkbox-label">
-                  <input v-model="aiConfig.show_thinking" type="checkbox">
-                  <span>显示思维链</span>
-                </label>
+              <div class="form-group ai-config-thinking-option">
+                <div class="thinking-option-card">
+                  <span class="thinking-option-icon" aria-hidden="true">
+                    <span class="material-icons">psychology</span>
+                  </span>
+                  <div class="thinking-option-body">
+                    <span class="thinking-option-title">显示思维链</span>
+                    <span class="thinking-option-desc">推理模型（如 o1/o3）会在回复中展示中间推理过程</span>
+                  </div>
+                  <label class="toggle-switch">
+                    <input v-model="aiConfig.show_thinking" type="checkbox" aria-label="显示思维链">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
               </div>
               <div class="form-group">
                 <label>上下文记忆条数</label>

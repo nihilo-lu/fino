@@ -453,6 +453,68 @@
     margin: 0;
 }
 
+/* AI 配置 - 思维链选项卡片 */
+.ai-config-thinking-option {
+    margin-bottom: 20px;
+}
+.thinking-option-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.thinking-option-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px rgba(31, 26, 18, 0.06);
+}
+[data-theme="dark"] .thinking-option-card:hover {
+    box-shadow: 0 0 0 1px rgba(232, 228, 220, 0.08);
+}
+.thinking-option-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.1) 100%);
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.thinking-option-icon .material-icons {
+    font-size: 24px;
+}
+[data-theme="dark"] .thinking-option-icon {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%);
+    color: #818cf8;
+}
+.thinking-option-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.thinking-option-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+}
+.thinking-option-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    letter-spacing: 0.1px;
+}
+.thinking-option-card .toggle-switch {
+    flex-shrink: 0;
+}
+
 /* 开关按钮 Toggle Switch */
 .toggle-switch {
     position: relative;
