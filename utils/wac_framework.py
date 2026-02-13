@@ -284,10 +284,10 @@ class WACInventory:
         )
 
         if abs(new_quantity) < Decimal("0.0001"):
-            # 清空持仓
-            del self.inventory[code][account]
-            if not self.inventory[code]:
-                del self.inventory[code]
+            # 清空持仓（键为 (ledger_id, code)，不是 code）
+            del self.inventory[key][account]
+            if not self.inventory[key]:
+                del self.inventory[key]
         else:
             record.quantity = new_quantity
             record.total_cost = new_total_cost
@@ -309,9 +309,10 @@ class WACInventory:
         records = []
 
         if code:
-            if code in self.inventory:
-                for account, record in self.inventory[code].items():
-                    records.append(record)
+            for (lid, c), accounts in self.inventory.items():
+                if c == code:
+                    for account, record in accounts.items():
+                        records.append(record)
         else:
             for code_key, accounts in self.inventory.items():
                 for account, record in accounts.items():
@@ -383,28 +384,30 @@ class WACInventory:
         return result
 
     def get_total_quantity(self, code: str, account: Optional[str] = None) -> Decimal:
-        """获取指定代码的总数量"""
-        if code not in self.inventory:
-            return Decimal("0")
-
-        if account:
-            if account in self.inventory[code]:
-                return self.inventory[code][account].quantity
-            return Decimal("0")
-
-        return sum(record.quantity for record in self.inventory[code].values())
+        """获取指定代码的总数量（键为 (ledger_id, code)，需遍历匹配 code）"""
+        total = Decimal("0")
+        for (lid, c), accounts in self.inventory.items():
+            if c != code:
+                continue
+            if account:
+                if account in accounts:
+                    return accounts[account].quantity
+                return Decimal("0")
+            total += sum(record.quantity for record in accounts.values())
+        return total
 
     def get_total_cost(self, code: str, account: Optional[str] = None) -> Decimal:
-        """获取指定代码的总成本"""
-        if code not in self.inventory:
-            return Decimal("0")
-
-        if account:
-            if account in self.inventory[code]:
-                return self.inventory[code][account].total_cost
-            return Decimal("0")
-
-        return sum(record.total_cost for record in self.inventory[code].values())
+        """获取指定代码的总成本（键为 (ledger_id, code)，需遍历匹配 code）"""
+        total = Decimal("0")
+        for (lid, c), accounts in self.inventory.items():
+            if c != code:
+                continue
+            if account:
+                if account in accounts:
+                    return accounts[account].total_cost
+                return Decimal("0")
+            total += sum(record.total_cost for record in accounts.values())
+        return total
 
     def get_realized_pl_details(self) -> pd.DataFrame:
         """获取已实现损益详情"""
