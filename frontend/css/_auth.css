@@ -337,6 +337,20 @@
     letter-spacing: 0.3px;
 }
 
+#register-page .verification-code-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+#register-page .verification-code-row input {
+    flex: 1;
+    min-width: 0;
+}
+#register-page .verification-code-row .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 #login-page .btn.btn-primary,
 #register-page .btn.btn-primary {
     width: 100%;

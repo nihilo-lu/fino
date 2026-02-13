@@ -73,6 +73,21 @@ export default {
     const dbConfigSaving = ref(false)
     const dbConfigTesting = ref(false)
 
+    // 邮件配置（仅管理员，用于注册验证码等）
+    const emailConfig = ref({
+      enabled: false,
+      smtp_host: '',
+      smtp_port: 587,
+      smtp_user: '',
+      smtp_password: '',
+      from_email: '',
+      use_tls: true,
+      require_verification_for_register: false
+    })
+    const emailConfigSaving = ref(false)
+    const emailTestSending = ref(false)
+    const emailTestTo = ref('')
+
     // 插件中心
     const pluginRegistry = ref([])
     const installedPlugins = ref({ installed: [], enabled: [] })
@@ -149,6 +164,26 @@ export default {
       if (!isAdmin.value) return
       const cfg = await actions.fetchDatabaseConfig()
       if (cfg) dbConfig.value = { ...dbConfig.value, ...cfg }
+    }
+
+    const loadEmailConfig = async () => {
+      if (!isAdmin.value) return
+      const cfg = await actions.fetchEmailConfig()
+      if (cfg) emailConfig.value = { ...emailConfig.value, ...cfg }
+    }
+
+    const handleEmailSave = async (e) => {
+      e.preventDefault()
+      emailConfigSaving.value = true
+      const ok = await actions.saveEmailConfig(emailConfig.value)
+      emailConfigSaving.value = false
+      if (ok) loadEmailConfig()
+    }
+
+    const handleSendTestEmail = async () => {
+      emailTestSending.value = true
+      await actions.sendTestEmail(emailTestTo.value?.trim() || undefined)
+      emailTestSending.value = false
     }
 
     const loadPluginRegistry = async () => {
@@ -565,6 +600,7 @@ export default {
       if (isAdmin.value) {
         loadUsers()
         loadDatabaseConfig()
+        loadEmailConfig()
       }
     })
     watch(activeTab, (tab) => {
@@ -660,6 +696,13 @@ export default {
       loadDatabaseConfig,
       handleDatabaseSave,
       handleDatabaseTest,
+      emailConfig,
+      emailConfigSaving,
+      emailTestSending,
+      emailTestTo,
+      loadEmailConfig,
+      handleEmailSave,
+      handleSendTestEmail,
       pluginRegistry,
       installedPlugins,
       pluginsLoading,
@@ -1060,6 +1103,76 @@ export default {
         </div>
       </div>
       <div v-if="isAdmin" class="form-card">
+        <div class="card-header"><h3>📧 邮件设置</h3></div>
+        <div class="card-body">
+          <p class="form-hint" style="margin-bottom: 16px;">配置 SMTP 后可用于注册验证码、找回密码等场景。请先填写并保存，再发送测试邮件。</p>
+          <form @submit="handleEmailSave">
+            <div class="form-group checkbox-group">
+              <label class="toggle-switch">
+                <input v-model="emailConfig.enabled" type="checkbox">
+                <span class="toggle-slider"></span>
+                <span class="toggle-switch-label">启用邮件发送</span>
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>SMTP 主机</label>
+                <input v-model="emailConfig.smtp_host" type="text" placeholder="如 smtp.qq.com">
+              </div>
+              <div class="form-group">
+                <label>SMTP 端口</label>
+                <input v-model.number="emailConfig.smtp_port" type="number" placeholder="587">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>SMTP 用户名</label>
+                <input v-model="emailConfig.smtp_user" type="text" placeholder="登录用户名">
+              </div>
+              <div class="form-group">
+                <label>SMTP 密码</label>
+                <input v-model="emailConfig.smtp_password" type="password" placeholder="留空则保持原密码">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>发件人邮箱</label>
+                <input v-model="emailConfig.from_email" type="email" placeholder="如 noreply@example.com">
+              </div>
+              <div class="form-group checkbox-group">
+                <label class="toggle-switch">
+                  <input v-model="emailConfig.use_tls" type="checkbox">
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-switch-label">使用 TLS</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group checkbox-group">
+              <label class="toggle-switch">
+                <input v-model="emailConfig.require_verification_for_register" type="checkbox">
+                <span class="toggle-slider"></span>
+                <span class="toggle-switch-label">注册时需要邮箱验证码</span>
+              </label>
+              <p class="form-hint" style="margin-top: 4px;">开启后，用户注册时必须先获取并填写发送到邮箱的验证码。</p>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" :disabled="emailConfigSaving">
+                {{ emailConfigSaving ? '保存中...' : '💾 保存邮件配置' }}
+              </button>
+              <button type="button" class="btn btn-outline" :disabled="emailConfigSaving || emailTestSending || !emailConfig.enabled" @click="handleSendTestEmail">
+                {{ emailTestSending ? '发送中...' : '📤 发送测试邮件' }}
+              </button>
+            </div>
+          </form>
+          <div v-if="emailConfig.enabled" class="form-row" style="margin-top: 12px;">
+            <div class="form-group">
+              <label>测试收件邮箱（可选，不填则发到当前用户资料邮箱）</label>
+              <input v-model="emailTestTo" type="email" placeholder="用于接收测试邮件">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="form-card">
         <div class="card-header"><h3>🧩 插件中心</h3></div>
         <div class="card-body">
           <p class="form-hint" style="margin-bottom: 16px;">开启后，设置中将显示「插件中心」标签，可管理 AI、网盘等插件。</p>
@@ -1230,7 +1343,7 @@ export default {
               <div v-for="p in (installedPlugins.installed || [])" :key="p.id" class="item-card">
                 <div class="item-info">
                   <span class="item-name">{{ p.name }}</span>
-                  <span class="item-desc">{{ p.manifest?.description || p.id }} · v{{ p.version }}</span>
+                  <span class="item-desc">{{ p.manifest?.description || p.id }}</span>
                 </div>
                 <div class="item-actions">
                   <label class="toggle-switch" :title="isPluginEnabled(p.id) ? '点击禁用' : '点击启用'">
@@ -1270,7 +1383,7 @@ export default {
                 <div v-for="p in availableToInstall" :key="p.id" class="item-card">
                   <div class="item-info">
                     <span class="item-name">{{ p.name }}</span>
-                    <span class="item-desc">{{ p.description }} · v{{ p.version }}</span>
+                    <span class="item-desc">{{ p.description }}</span>
                   </div>
                   <div class="item-actions">
                     <button

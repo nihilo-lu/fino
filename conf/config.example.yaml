@@ -44,6 +44,16 @@ lab:
   cloudreve:
     enabled: false   # 是否开启网盘功能，用户需在设置中绑定自己的 Cloudreve 服务器
     verify_ssl: true  # 是否验证 SSL 证书，自签名证书请设为 false
+  # 邮件（SMTP）用于注册验证码、找回密码等
+  email:
+    enabled: false
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    smtp_user: ''
+    smtp_password: ''
+    from_email: noreply@example.com
+    use_tls: true
+    require_verification_for_register: false   # 注册时是否必须填写邮箱验证码
 
 # ========== PWA 应用 ==========
 pwa:

@@ -1,4 +1,5 @@
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useStore } from '../store/index.js'
 
 export default {
   name: 'RegisterPage',
@@ -8,17 +9,67 @@ export default {
   },
   emits: ['register', 'show-login'],
   setup(props, { emit }) {
+    const { actions } = useStore()
     const email = ref('')
     const username = ref('')
     const password = ref('')
     const passwordConfirm = ref('')
     const passwordHint = ref('')
+    const verificationCode = ref('')
     const displayError = ref('')
     const displaySuccess = ref('')
     const loading = ref(false)
+    const requireEmailVerification = ref(false)
+    const codeCooldown = ref(0)
+    const codeSending = ref(false)
+    let cooldownTimer = null
+
+    const clearCooldownTimer = () => {
+      if (cooldownTimer) {
+        clearInterval(cooldownTimer)
+        cooldownTimer = null
+      }
+    }
+
+    const startCooldown = () => {
+      codeCooldown.value = 60
+      clearCooldownTimer()
+      cooldownTimer = setInterval(() => {
+        codeCooldown.value--
+        if (codeCooldown.value <= 0) clearCooldownTimer()
+      }, 1000)
+    }
+
+    onMounted(async () => {
+      const settings = await actions.fetchRegisterSettings()
+      requireEmailVerification.value = !!settings?.require_email_verification
+    })
+    onUnmounted(clearCooldownTimer)
 
     watch(() => props.error, (v) => { displayError.value = v || '' })
     watch(() => props.success, (v) => { displaySuccess.value = v || '' })
+
+    const handleSendCode = async () => {
+      const em = email.value?.trim()
+      if (!em) {
+        displayError.value = '请先填写邮箱'
+        return
+      }
+      if (!/^[^@]+@[^@]+\.[^@]+$/.test(em)) {
+        displayError.value = '邮箱格式不正确'
+        return
+      }
+      displayError.value = ''
+      codeSending.value = true
+      const result = await actions.sendRegisterCode(em)
+      codeSending.value = false
+      if (result.success) {
+        displaySuccess.value = result.message || '验证码已发送'
+        startCooldown()
+      } else {
+        displayError.value = result.error || '发送失败'
+      }
+    }
 
     const handleSubmit = async () => {
       displayError.value = ''
@@ -27,15 +78,23 @@ export default {
         displayError.value = '两次输入的密码不一致'
         return
       }
+      if (requireEmailVerification.value && !verificationCode.value?.trim()) {
+        displayError.value = '请输入邮箱验证码'
+        return
+      }
       loading.value = true
       try {
-        await emit('register', {
+        const payload = {
           email: email.value,
           username: username.value,
           password: password.value,
           password_confirm: passwordConfirm.value,
           password_hint: passwordHint.value
-        })
+        }
+        if (requireEmailVerification.value) {
+          payload.verification_code = verificationCode.value.trim()
+        }
+        await emit('register', payload)
       } finally {
         loading.value = false
       }
@@ -47,9 +106,14 @@ export default {
       password,
       passwordConfirm,
       passwordHint,
+      verificationCode,
       displayError,
       displaySuccess,
       loading,
+      requireEmailVerification,
+      codeCooldown,
+      codeSending,
+      handleSendCode,
       handleSubmit,
       showLogin: () => emit('show-login')
     }
@@ -66,6 +130,15 @@ export default {
             <div class="form-group">
               <label for="reg-email">邮箱</label>
               <input type="email" id="reg-email" v-model="email" required placeholder="请输入邮箱">
+            </div>
+            <div v-if="requireEmailVerification" class="form-group">
+              <label for="reg-code">邮箱验证码</label>
+              <div class="verification-code-row">
+                <input type="text" id="reg-code" v-model="verificationCode" maxlength="6" placeholder="请输入验证码" autocomplete="one-time-code">
+                <button type="button" class="btn btn-outline" :disabled="codeCooldown > 0 || codeSending || !email" @click="handleSendCode">
+                  {{ codeSending ? '发送中...' : codeCooldown > 0 ? codeCooldown + ' 秒后重试' : '获取验证码' }}
+                </button>
+              </div>
             </div>
             <div class="form-group">
               <label for="reg-username">用户名</label>

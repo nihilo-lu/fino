@@ -94,6 +94,25 @@ const actions = {
     return { success: false, error: data?.error || '登录失败' }
   },
 
+  async fetchRegisterSettings() {
+    const response = await fetch(`${API_BASE}/auth/register-settings`)
+    const data = await parseJson(response)
+    return data?.data || data || {}
+  },
+
+  async sendRegisterCode(email) {
+    const response = await fetch(`${API_BASE}/auth/send-register-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      return { success: true, message: data?.message }
+    }
+    return { success: false, error: data?.error || '发送失败' }
+  },
+
   async register(formData) {
     const payload = {
       email: formData.email,
@@ -101,6 +120,9 @@ const actions = {
       password: formData.password,
       password_repeat: formData.password_confirm || formData.password_repeat,
       password_hint: formData.password_hint || ''
+    }
+    if (formData.verification_code) {
+      payload.verification_code = formData.verification_code
     }
     const response = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
@@ -598,6 +620,42 @@ const actions = {
       return true
     }
     showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async fetchEmailConfig() {
+    const response = await apiFetch(`${API_BASE}/settings/email`)
+    const data = await parseJson(response)
+    return data?.data || data
+  },
+
+  async saveEmailConfig(cfg) {
+    const response = await apiFetch(`${API_BASE}/settings/email`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg)
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast('邮件配置已保存', 'success')
+      return true
+    }
+    showToast(data?.error || '保存失败', 'error')
+    return false
+  },
+
+  async sendTestEmail(toEmail) {
+    const response = await apiFetch(`${API_BASE}/settings/email/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toEmail ? { to_email: toEmail } : {})
+    })
+    const data = await parseJson(response)
+    if (response.ok && data?.success) {
+      showToast(data?.message || '测试邮件已发送', 'success')
+      return true
+    }
+    showToast(data?.error || '发送失败', 'error')
     return false
   },
 

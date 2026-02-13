@@ -294,6 +294,147 @@ def save_plugin_center_setting():
         return api_error(str(e), 500)
 
 
+_DEFAULT_EMAIL = {
+    "enabled": False,
+    "smtp_host": "",
+    "smtp_port": 587,
+    "smtp_user": "",
+    "smtp_password": "",
+    "from_email": "",
+    "use_tls": True,
+    "require_verification_for_register": False,
+}
+
+
+def _get_email_config():
+    """从 config.yaml 读取邮件配置，合并默认值"""
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(current_app.config.get("CONFIG_PATH"))
+        lab = (cfg or {}).get("lab") or {}
+        email = lab.get("email") or {}
+        out = _DEFAULT_EMAIL.copy()
+        for k, v in email.items():
+            if k in out and v is not None:
+                if k == "smtp_port":
+                    try:
+                        out[k] = int(v)
+                    except (TypeError, ValueError):
+                        out[k] = 587
+                elif k == "use_tls":
+                    out[k] = bool(v)
+                elif k == "require_verification_for_register":
+                    out[k] = bool(v)
+                else:
+                    out[k] = v
+        return out
+    except Exception:
+        return _DEFAULT_EMAIL.copy()
+
+
+@main_bp.route("/api/settings/email", methods=["GET"])
+def get_email_config():
+    """获取邮件配置（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可查看", 403)
+    data = _get_email_config()
+    if data.get("smtp_password"):
+        data["smtp_password"] = "***"
+    return api_success(data=data)
+
+
+@main_bp.route("/api/settings/email", methods=["PUT"])
+def save_email_config():
+    """保存邮件配置（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, save_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可修改", 403)
+    try:
+        cfg = cfg or {}
+        if "lab" not in cfg:
+            cfg["lab"] = {}
+        if "email" not in cfg["lab"]:
+            cfg["lab"]["email"] = {}
+        body = request.get_json() or {}
+        allowed = {"enabled", "smtp_host", "smtp_port", "smtp_user", "smtp_password", "from_email", "use_tls", "require_verification_for_register"}
+        for k in allowed:
+            if k in body:
+                v = body[k]
+                if k == "smtp_password":
+                    if v and v != "***":
+                        cfg["lab"]["email"][k] = v
+                elif k == "smtp_port":
+                    try:
+                        cfg["lab"]["email"][k] = int(v) if v is not None else 587
+                    except (TypeError, ValueError):
+                        cfg["lab"]["email"][k] = 587
+                elif k in ("use_tls", "enabled", "require_verification_for_register"):
+                    cfg["lab"]["email"][k] = bool(v)
+                else:
+                    cfg["lab"]["email"][k] = str(v).strip() if v is not None else ""
+        if not save_config(current_app.config.get("CONFIG_PATH"), cfg):
+            return api_error("保存配置失败", 500)
+        data = _get_email_config()
+        if data.get("smtp_password"):
+            data["smtp_password"] = "***"
+        return api_success(data=data, message="邮件配置已保存")
+    except Exception as e:
+        return api_error(str(e), 500)
+
+
+@main_bp.route("/api/settings/email/test", methods=["POST"])
+def send_test_email():
+    """发送测试邮件（仅管理员）"""
+    from flask import session
+    if not session.get("username"):
+        return api_error("未登录", 401)
+    from utils.auth_config import load_config, is_admin, get_user
+    cfg = load_config(current_app.config.get("CONFIG_PATH"))
+    user = get_user(cfg or {}, session["username"])
+    if not is_admin(user.get("roles")):
+        return api_error("仅管理员可操作", 403)
+    body = request.get_json() or {}
+    to_email = (body.get("to_email") or "").strip() or (user.get("email") or "").strip()
+    if not to_email:
+        return api_error("请填写收件邮箱或在个人资料中设置邮箱", 400)
+    import re
+    if not re.match(r"^[^@]+@[^@]+\.[^@]+$", to_email):
+        return api_error("邮箱格式不正确", 400)
+    ec = _get_email_config()
+    if not ec.get("enabled") or not ec.get("smtp_host"):
+        return api_error("请先启用并保存邮件配置", 400)
+    # 密码可能在前端被掩码，需要从当前 config 读取真实密码
+    lab = (cfg or {}).get("lab") or {}
+    lab_email = lab.get("email") or {}
+    smtp_password = lab_email.get("smtp_password") or ""
+    from utils.email_sender import send_email
+    ok, msg = send_email(
+        smtp_host=ec["smtp_host"],
+        smtp_port=int(ec.get("smtp_port", 587)),
+        to_email=to_email,
+        subject="[Fino] 测试邮件",
+        body="这是一封来自 Fino 的测试邮件。如果您收到此邮件，说明邮件配置正确，可用于注册验证码等功能。",
+        smtp_user=ec.get("smtp_user") or None,
+        smtp_password=smtp_password if smtp_password and smtp_password != "***" else None,
+        from_email=ec.get("from_email") or None,
+        use_tls=bool(ec.get("use_tls", True)),
+    )
+    if ok:
+        return api_success(message="测试邮件已发送，请查收")
+    return api_error(msg or "发送失败", 500)
+
+
 @main_bp.route("/")
 def index():
     if current_app.config.get("API_ONLY"):

@@ -3,6 +3,8 @@
 """
 
 import re
+import time
+import random
 import logging
 from flask import Blueprint, request, session, current_app
 
@@ -12,6 +14,13 @@ from app.auth_middleware import create_token
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+# 注册验证码：邮箱 -> { "code": "123456", "expires_at": timestamp }
+_register_codes = {}
+# 发码限流：邮箱 -> 上次发送时间
+_register_code_last_sent = {}
+REGISTER_CODE_EXPIRE = 600  # 10 分钟
+REGISTER_CODE_COOLDOWN = 60  # 同一邮箱 60 秒内只能发一次
 
 
 def _get_current_username():
@@ -515,17 +524,96 @@ def delete_user(username):
         return api_error(str(e), 500)
 
 
+def _get_register_require_email_verification():
+    """是否开启注册邮箱验证码（仅读配置）"""
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
+        lab = cfg.get("lab") or {}
+        email_cfg = lab.get("email") or {}
+        return bool(email_cfg.get("require_verification_for_register")) and bool(email_cfg.get("enabled")) and bool(email_cfg.get("smtp_host"))
+    except Exception:
+        return False
+
+
+def _get_email_config_for_send():
+    """获取发邮件所需配置（用于发送注册验证码）"""
+    try:
+        from utils.auth_config import load_config
+        cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
+        lab = cfg.get("lab") or {}
+        return lab.get("email") or {}
+    except Exception:
+        return {}
+
+
+@auth_bp.route("/register-settings", methods=["GET"])
+def register_settings():
+    """获取注册相关设置（公开，供注册页判断是否需要验证码）"""
+    return api_success(data={
+        "require_email_verification": _get_register_require_email_verification(),
+    })
+
+
+@auth_bp.route("/send-register-code", methods=["POST"])
+def send_register_code():
+    """发送注册验证码到邮箱（公开）"""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return api_error("请填写邮箱", 400)
+    if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+        return api_error("邮箱格式不正确", 400)
+
+    if not _get_register_require_email_verification():
+        return api_error("当前未开启注册邮箱验证码", 400)
+
+    now = time.time()
+    if email in _register_code_last_sent and (now - _register_code_last_sent[email]) < REGISTER_CODE_COOLDOWN:
+        return api_error("发送过于频繁，请 60 秒后再试", 429)
+
+    ec = _get_email_config_for_send()
+    smtp_host = ec.get("smtp_host") or ""
+    smtp_port = int(ec.get("smtp_port") or 587)
+    smtp_user = ec.get("smtp_user") or None
+    smtp_password = ec.get("smtp_password") or None
+    from_email = ec.get("from_email") or None
+    use_tls = bool(ec.get("use_tls", True))
+
+    code = "".join(str(random.randint(0, 9)) for _ in range(6))
+    _register_codes[email] = {"code": code, "expires_at": now + REGISTER_CODE_EXPIRE}
+    _register_code_last_sent[email] = now
+
+    from utils.email_sender import send_email
+    ok, msg = send_email(
+        smtp_host=smtp_host,
+        smtp_port=smtp_port,
+        to_email=email,
+        subject="[Fino] 注册验证码",
+        body=f"您的注册验证码为：{code}\n有效期 10 分钟，请勿泄露。",
+        smtp_user=smtp_user,
+        smtp_password=smtp_password,
+        from_email=from_email,
+        use_tls=use_tls,
+    )
+    if not ok:
+        del _register_codes[email]
+        return api_error(msg or "发送失败", 500)
+    return api_success(message="验证码已发送，请查收邮件")
+
+
 @auth_bp.route("/register", methods=["POST"])
 def register():
     from flask import current_app
     from utils.auth_config import load_config, save_config
 
     data = request.get_json()
-    email = data.get("email", "").strip()
+    email = (data.get("email") or "").strip()
     username = data.get("username", "").strip().lower()
     password = data.get("password", "").strip()
     password_repeat = data.get("password_repeat", "").strip()
     password_hint = data.get("password_hint", "").strip() or None
+    verification_code = (data.get("verification_code") or "").strip()
 
     if not all([email, username, password, password_repeat]):
         return api_error("所有字段都为必填项", 400)
@@ -535,6 +623,20 @@ def register():
 
     if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
         return api_error("邮箱格式不正确", 400)
+
+    require_verification = _get_register_require_email_verification()
+    if require_verification:
+        if not verification_code:
+            return api_error("请输入邮箱验证码", 400)
+        entry = _register_codes.get(email)
+        if not entry:
+            return api_error("验证码无效或已过期，请重新获取", 400)
+        if entry["code"] != verification_code:
+            return api_error("验证码错误", 400)
+        if time.time() > entry["expires_at"]:
+            _register_codes.pop(email, None)
+            return api_error("验证码已过期，请重新获取", 400)
+        _register_codes.pop(email, None)
 
     try:
         config_path = current_app.config.get("CONFIG_PATH")
