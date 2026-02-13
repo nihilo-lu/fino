@@ -9,6 +9,7 @@ export default {
   setup(props, { emit }) {
     const username = ref('')
     const password = ref('')
+    const passwordVisible = ref(false)
     const displayError = ref('')
     const loading = ref(false)
 
@@ -27,6 +28,7 @@ export default {
     return {
       username,
       password,
+      passwordVisible,
       displayError,
       loading,
       handleSubmit,
@@ -48,7 +50,24 @@ export default {
             </div>
             <div class="form-group">
               <label for="password">密码</label>
-              <input type="password" id="password" v-model="password" required placeholder="请输入密码">
+              <div class="password-input-wrap">
+                <input
+                  :type="passwordVisible ? 'text' : 'password'"
+                  id="password"
+                  v-model="password"
+                  required
+                  placeholder="请输入密码"
+                >
+                <button
+                  type="button"
+                  class="password-toggle-btn"
+                  :title="passwordVisible ? '隐藏密码' : '显示密码'"
+                  @click="passwordVisible = !passwordVisible"
+                  tabindex="-1"
+                >
+                  <span class="material-icons">{{ passwordVisible ? 'visibility_off' : 'visibility' }}</span>
+                </button>
+              </div>
             </div>
             <button type="submit" class="btn btn-primary btn-block" :disabled="loading">
               {{ loading ? '登录中...' : '登录' }}

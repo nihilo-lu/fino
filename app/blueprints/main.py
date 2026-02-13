@@ -18,6 +18,7 @@ _DEFAULT_PWA = {
     "display": "standalone",
     "icon_192": "/frontend/icons/icon-192.png",
     "icon_512": "/frontend/icons/icon-512.png",
+    "favicon": "",
 }
 
 
@@ -243,7 +244,7 @@ def save_pwa_config():
         cfg = load_config(current_app.config.get("CONFIG_PATH")) or {}
         if "pwa" not in cfg:
             cfg["pwa"] = {}
-        allowed = {"name", "short_name", "description", "theme_color", "background_color", "display", "icon_192", "icon_512"}
+        allowed = {"name", "short_name", "description", "theme_color", "background_color", "display", "icon_192", "icon_512", "favicon"}
         for k, v in body.items():
             if k in allowed and v is not None:
                 cfg["pwa"][k] = str(v).strip() if isinstance(v, str) else v
@@ -468,14 +469,17 @@ def _render_index(pwa):
     tpl = tpl.replace('content="#E8A317"', 'content="{{ theme_color }}"')
     tpl = tpl.replace('content="投资追踪"', 'content="{{ short_name }}"')
     tpl = tpl.replace(">投资追踪器</title>", ">{{ name }}</title>")
-    tpl = tpl.replace('href="/frontend/icons/icon-192.png"', 'href="{{ icon_192 }}"')
-    # 使用 render_template_string 渲染
+    tpl = tpl.replace('<link rel="apple-touch-icon" href="/frontend/icons/icon-192.png">', '<link rel="apple-touch-icon" href="{{ icon_192 }}">')
+    tpl = tpl.replace('<link rel="icon" type="image/png" sizes="192x192" href="/frontend/icons/icon-192.png">', '<link rel="icon" type="image/png" sizes="192x192" href="{{ favicon_href }}">')
+    icon_192 = pwa.get("icon_192", "/frontend/icons/icon-192.png")
+    favicon_href = (pwa.get("favicon") or "").strip() or icon_192
     from jinja2 import Template
     return Template(tpl).render(
         name=pwa.get("name", "投资追踪器"),
         short_name=pwa.get("short_name", "投资追踪"),
         theme_color=pwa.get("theme_color", "#E8A317"),
-        icon_192=pwa.get("icon_192", "/frontend/icons/icon-192.png"),
+        icon_192=icon_192,
+        favicon_href=favicon_href,
     )
 
 

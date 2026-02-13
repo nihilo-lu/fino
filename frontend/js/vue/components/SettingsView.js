@@ -22,7 +22,8 @@ export default {
       background_color: '#ffffff',
       display: 'standalone',
       icon_192: '/frontend/icons/icon-192.png',
-      icon_512: '/frontend/icons/icon-512.png'
+      icon_512: '/frontend/icons/icon-512.png',
+      favicon: ''
     })
     const pwaSaving = ref(false)
     const newLedgerName = ref('')
@@ -1092,6 +1093,10 @@ export default {
               <div class="form-group">
                 <label>图标 512×512</label>
                 <input v-model="pwaConfig.icon_512" type="text" placeholder="/frontend/icons/icon-512.png">
+              </div>
+              <div class="form-group">
+                <label>网站图标（标签页图标）</label>
+                <input v-model="pwaConfig.favicon" type="text" placeholder="留空则使用 192×192 图标，如：/frontend/icons/icon-192.png">
               </div>
             </div>
             <div class="form-actions">

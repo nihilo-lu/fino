@@ -337,6 +337,43 @@
     letter-spacing: 0.3px;
 }
 
+/* 登录页密码框：输入框 + 显示/隐藏按钮 */
+#login-page .password-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+#login-page .password-input-wrap input {
+    flex: 1;
+    padding-right: 44px;
+}
+#login-page .password-toggle-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+#login-page .password-toggle-btn:hover {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.06);
+}
+[data-theme="dark"] #login-page .password-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+#login-page .password-toggle-btn .material-icons {
+    font-size: 22px;
+}
+
 #register-page .verification-code-row {
     display: flex;
     gap: 10px;
