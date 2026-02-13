@@ -895,6 +895,61 @@ class Analytics:
             "position_count": len(positions),
         }
 
+    def get_realized_pl(
+        self, ledger_id: Optional[int] = None, account_id: Optional[int] = None
+    ) -> Dict:
+        """获取已实现损益汇总及明细（按账本、可选按账户筛选）
+
+        Args:
+            ledger_id: 账本ID（必填时由调用方保证）
+            account_id: 账户ID（可选）
+
+        Returns:
+            Dict: 含 total_cny（报表币种已实现损益合计）、details（明细列表，可序列化为 JSON）
+        """
+        if ledger_id is None:
+            return {"total_cny": 0.0, "details": []}
+
+        inv = self._get_inventory_manager(ledger_id)
+        if inv is None:
+            return {"total_cny": 0.0, "details": []}
+
+        details = inv.get_realized_pl_details_list(ledger_id=ledger_id)
+        if account_id is not None:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT name FROM accounts WHERE ledger_id = ? AND id = ?",
+                (ledger_id, account_id),
+            )
+            row = cursor.fetchone()
+            if row:
+                account_name = row[0]
+                details = [d for d in details if d.get("账户") == account_name]
+            else:
+                details = []
+
+        def _to_serializable(obj):
+            if hasattr(obj, "__float__"):
+                return float(obj)
+            if isinstance(obj, (list, tuple)):
+                return [_to_serializable(x) for x in obj]
+            if isinstance(obj, dict):
+                return {k: _to_serializable(v) for k, v in obj.items()}
+            return obj
+
+        total_cny = 0.0
+        for d in details:
+            pl_cny = d.get("报表币种损益")
+            if pl_cny is not None:
+                total_cny += float(pl_cny)
+            else:
+                total_cny += float(d.get("利润", 0) or 0)
+
+        return {
+            "total_cny": round(total_cny, 2),
+            "details": _to_serializable(details),
+        }
+
     def get_asset_allocation(
         self, ledger_id: Optional[int] = None, account_id: Optional[int] = None
     ) -> pd.DataFrame:

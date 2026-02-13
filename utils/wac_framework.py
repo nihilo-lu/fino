@@ -46,6 +46,7 @@ class WACPLDetail:
     profit: Decimal  # 利润
     currency: str
     account: str
+    ledger_id: int = 0  # 账本ID，用于多账本筛选
     exchange_rate: Decimal = Decimal("1.0")
 
 
@@ -273,6 +274,7 @@ class WACInventory:
             profit=profit,
             currency=currency,
             account=account,
+            ledger_id=ledger_id,
             exchange_rate=exchange_rate,
         )
         self.realized_pl_details.append(pl_detail)
@@ -428,6 +430,7 @@ class WACInventory:
                 "成本": pl.cost,
                 "利润": pl.profit,
                 "账户": pl.account,
+                "账本ID": pl.ledger_id,
             }
             if self.has_currency_column:
                 pl_dict["币种"] = pl.currency
@@ -440,15 +443,20 @@ class WACInventory:
 
         return pd.DataFrame(dict_records)
 
-    def get_realized_pl_details_list(self, code: Optional[str] = None) -> List[dict]:
+    def get_realized_pl_details_list(
+        self,
+        code: Optional[str] = None,
+        ledger_id: Optional[int] = None,
+    ) -> List[dict]:
         """获取已实现损益详情（轻量级版）"""
         if not self.realized_pl_details:
             return []
 
+        records = self.realized_pl_details
         if code:
-            records = [pl for pl in self.realized_pl_details if pl.code == code]
-        else:
-            records = self.realized_pl_details
+            records = [pl for pl in records if pl.code == code]
+        if ledger_id is not None:
+            records = [pl for pl in records if pl.ledger_id == ledger_id]
 
         if not records:
             return []
@@ -467,6 +475,7 @@ class WACInventory:
                 "成本": pl.cost,
                 "利润": pl.profit,
                 "账户": pl.account,
+                "账本ID": pl.ledger_id,
             }
             if self.has_currency_column:
                 pl_dict["币种"] = pl.currency

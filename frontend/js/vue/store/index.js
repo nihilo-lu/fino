@@ -462,10 +462,12 @@ const actions = {
     if (state.currentAccountId) params.account_id = state.currentAccountId
     const response = await apiFetch(`${API_BASE}/analysis/returns?${new URLSearchParams(params)}`)
     const data = await parseJson(response)
-    if (data?.cumulative_return != null) {
-      return { nav_return: data.cumulative_return, simple_return: data.cumulative_return }
+    return {
+      nav_return: data?.cumulative_return ?? null,
+      simple_return: data?.cumulative_return ?? null,
+      portfolio_stats: data?.portfolio_stats ?? null,
+      realized_pl: data?.realized_pl ?? { total_cny: 0, details: [] }
     }
-    return data
   },
 
   async fetchToken() {

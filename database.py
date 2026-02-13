@@ -950,6 +950,12 @@ class Database:
         """获取投资组合统计信息"""
         return self.analytics.get_portfolio_stats(ledger_id, account_id)
 
+    def get_realized_pl(
+        self, ledger_id: Optional[int] = None, account_id: Optional[int] = None
+    ) -> Dict:
+        """获取已实现损益汇总及明细"""
+        return self.analytics.get_realized_pl(ledger_id, account_id)
+
     def update_position_price(self, position_id: int, new_price: float) -> bool:
         """更新持仓市价"""
         # 先获取持仓信息以便清除缓存

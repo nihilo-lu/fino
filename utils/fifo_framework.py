@@ -44,6 +44,7 @@ class PLDetail:
     profit: Decimal
     currency: str
     account: str
+    ledger_id: int = 0  # 账本ID，用于多账本筛选
     exchange_rate: Decimal = Decimal("1.0")  # 当前汇率（卖出/平仓时的汇率），默认为1.0
     cost_exchange_rate: Decimal = Decimal("1.0")  # 成本汇率（买入时的汇率），默认为1.0
 
@@ -327,6 +328,7 @@ class FIFOInventory:
 
         if sell_book_value is not None and removed_records:
             pl_details = self._calculate_realized_pl(
+                ledger_id,
                 removed_records,
                 sell_book_value,
                 sell_date,
@@ -450,6 +452,7 @@ class FIFOInventory:
 
     def _calculate_realized_pl(
         self,
+        ledger_id: int,
         removed_records: List[dict],
         sell_book_value: Decimal,
         sell_date: str,
@@ -523,6 +526,7 @@ class FIFOInventory:
                 ),
                 currency=currency,
                 account=account,
+                ledger_id=ledger_id,
                 exchange_rate=exchange_rate,  # 当前汇率（卖出时的汇率）
                 cost_exchange_rate=cost_exchange_rate,  # 成本汇率（买入时的汇率）
             )
@@ -723,6 +727,7 @@ class FIFOInventory:
             profit=profit,
             currency=currency,
             account=account,
+            ledger_id=ledger_id,
             exchange_rate=exchange_rate,
             cost_exchange_rate=short_pos.exchange_rate,
         )
@@ -794,6 +799,7 @@ class FIFOInventory:
             profit=profit,
             currency=currency,
             account=account,
+            ledger_id=ledger_id,
             exchange_rate=exchange_rate,
             cost_exchange_rate=short_pos.exchange_rate,
         )
@@ -958,6 +964,7 @@ class FIFOInventory:
                 "成本": pl.cost,
                 "利润": pl.profit,
                 "账户": pl.account,
+                "账本ID": pl.ledger_id,
             }
             if self.has_currency_column:
                 pl_dict["币种"] = pl.currency
@@ -972,12 +979,17 @@ class FIFOInventory:
 
         return pd.DataFrame(dict_records)
 
-    def get_realized_pl_details_list(self, code: Optional[str] = None) -> List[dict]:
+    def get_realized_pl_details_list(
+        self,
+        code: Optional[str] = None,
+        ledger_id: Optional[int] = None,
+    ) -> List[dict]:
         """
         获取已实现损益详情（轻量级版），直接返回 List[dict]，不转换为 DataFrame。
 
         Args:
             code: 商品代码，如果指定则只返回该代码的损益记录
+            ledger_id: 账本ID，如果指定则只返回该账本的损益记录
 
         Returns:
             已实现损益记录的字典列表
@@ -985,12 +997,12 @@ class FIFOInventory:
         if not self.realized_pl_details:
             return []
 
-        # 1. 确定要处理的数据源 (如果有code则先过滤，提升后续构建字典的效率)
+        # 1. 确定要处理的数据源 (按 code、ledger_id 过滤)
+        records = self.realized_pl_details
         if code:
-            # 假设 pl 对象中有 .code 属性
-            records = [pl for pl in self.realized_pl_details if pl.code == code]
-        else:
-            records = self.realized_pl_details
+            records = [pl for pl in records if pl.code == code]
+        if ledger_id is not None:
+            records = [pl for pl in records if pl.ledger_id == ledger_id]
 
         if not records:
             return []
@@ -1013,6 +1025,7 @@ class FIFOInventory:
                 "成本": pl.cost,
                 "利润": pl.profit,
                 "账户": pl.account,
+                "账本ID": pl.ledger_id,
             }
             if self.has_currency_column:
                 pl_dict["币种"] = pl.currency

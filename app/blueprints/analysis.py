@@ -22,10 +22,12 @@ def get_returns_analysis():
         database = get_db()
         return_rate = database.get_latest_cumulative_return(ledger_id)
         portfolio_stats = database.get_portfolio_stats(ledger_id, account_id)
+        realized_pl = database.get_realized_pl(ledger_id, account_id)
 
         return api_success(data={
             "cumulative_return": return_rate,
             "portfolio_stats": portfolio_stats,
+            "realized_pl": realized_pl,
         })
     except Exception as e:
         logger.error(f"Get returns analysis error: {e}")
