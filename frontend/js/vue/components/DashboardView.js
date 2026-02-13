@@ -44,8 +44,8 @@ export default {
 
     const drawCharts = () => {
       if (positions.value.length === 0) return
-      const allocationChart = document.getElementById('allocation-chart')
-      const profitChart = document.getElementById('profit-chart')
+      const allocationChart = document.getElementById('allocation-chart-target')
+      const profitChart = document.getElementById('profit-chart-target')
       if (!allocationChart || !profitChart) return
 
       const labels = positions.value.map(p => p.name)
@@ -117,8 +117,9 @@ export default {
         <div class="chart-card">
           <div class="card-header"><h3>资产配置</h3></div>
           <div class="card-body">
-            <div id="allocation-chart" class="chart-container">
-              <div v-if="positions.length === 0" class="empty-state">
+            <div class="chart-container">
+              <div v-if="positions.length > 0" id="allocation-chart-target" class="chart-target"></div>
+              <div v-else class="empty-state">
                 <span class="material-icons">pie_chart</span>
                 <p>暂无持仓数据</p>
               </div>
@@ -128,8 +129,9 @@ export default {
         <div class="chart-card">
           <div class="card-header"><h3>持仓收益</h3></div>
           <div class="card-body">
-            <div id="profit-chart" class="chart-container">
-              <div v-if="positions.length === 0" class="empty-state">
+            <div class="chart-container">
+              <div v-if="positions.length > 0" id="profit-chart-target" class="chart-target"></div>
+              <div v-else class="empty-state">
                 <span class="material-icons">bar_chart</span>
                 <p>暂无持仓数据</p>
               </div>
