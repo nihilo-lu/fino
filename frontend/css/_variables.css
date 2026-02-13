@@ -1,0 +1,24 @@
+/* 设计令牌与字体 */
+:root {
+    --primary-color: #1f1a12;
+    --primary-dark: #0f0a06;
+    --secondary-color: #7c7363;
+    --success-color: #0f766e;
+    --warning-color: #f59e0b;
+    --danger-color: #b91c1c;
+    --background-color: #f6f4ef;
+    --surface-color: #ffffff;
+    --text-primary: #1f1a12;
+    --text-secondary: #7c7363;
+    --border-color: #e6dfd2;
+    --shadow-sm: 0 4px 14px rgba(30, 20, 10, 0.06);
+    --shadow-md: 0 10px 24px rgba(30, 20, 10, 0.08);
+    --shadow-lg: 0 18px 38px rgba(30, 20, 10, 0.12);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@600;700&family=Inter:wght@400;500&display=swap');

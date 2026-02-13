@@ -381,6 +381,30 @@ def serve_static(filename):
     return send_from_directory(static_folder, filename)
 
 
+@main_bp.route("/plugins/<plugin_id>/<path:filename>")
+def serve_plugin_static(plugin_id, filename):
+    """提供插件目录下的静态文件（如 css、js），仅允许在插件目录内"""
+    import os
+    if current_app.config.get("API_ONLY"):
+        return jsonify({"error": "Not found"}), 404
+    static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
+    base_dir = os.path.dirname(os.path.abspath(static_folder))
+    plugin_dir = os.path.join(base_dir, "plugins", plugin_id)
+    if ".." in filename or ".." in plugin_id:
+        return jsonify({"error": "非法路径"}), 400
+    real_plugin = os.path.realpath(plugin_dir)
+    real_base = os.path.realpath(base_dir)
+    if not real_plugin.startswith(real_base + os.sep) or not os.path.isdir(real_plugin):
+        return jsonify({"error": "未找到"}), 404
+    file_path = os.path.join(plugin_dir, filename)
+    real_file = os.path.realpath(file_path)
+    if not real_file.startswith(real_plugin + os.sep) and real_file != real_plugin:
+        return jsonify({"error": "未找到"}), 404
+    if not os.path.isfile(real_file):
+        return jsonify({"error": "未找到"}), 404
+    return send_from_directory(plugin_dir, filename)
+
+
 @main_bp.route("/api/avatars/<path:filename>")
 def serve_avatar(filename):
     """提供用户头像静态文件"""

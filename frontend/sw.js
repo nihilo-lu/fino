@@ -3,11 +3,13 @@
  * 提供离线缓存与安装支持
  */
 
-const CACHE_NAME = 'fino-investment-tracker-v1';
+const CACHE_NAME = 'fino-investment-tracker-v2';
 const STATIC_ASSETS = [
   '/',
   '/frontend/index.html',
   '/frontend/css/styles.css',
+  '/plugins/fino-ai-chat/css/ai-chat.css',
+  '/plugins/fino-cloudreve/css/cloudreve.css',
   '/frontend/js/vue/main.js',
   '/frontend/js/vue/App.js',
   '/manifest.json',
