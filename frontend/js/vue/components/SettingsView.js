@@ -4,10 +4,11 @@ import PluginConfigModal from './PluginConfigModal.js'
 import AddLedgerModal from './AddLedgerModal.js'
 import AddCategoryModal from './AddCategoryModal.js'
 import AddAccountModal from './AddAccountModal.js'
+import AddUserModal from './AddUserModal.js'
 
 export default {
   name: 'SettingsView',
-  components: { PluginConfigModal, AddLedgerModal, AddCategoryModal, AddAccountModal },
+  components: { PluginConfigModal, AddLedgerModal, AddCategoryModal, AddAccountModal, AddUserModal },
   emits: ['navigate'],
   setup(props, { emit }) {
     const { state, actions, isAdmin } = useStore()
@@ -60,10 +61,6 @@ export default {
 
     // 用户管理（仅管理员）
     const users = ref([])
-    const newUserUsername = ref('')
-    const newUserEmail = ref('')
-    const newUserPassword = ref('')
-    const newUserIsAdmin = ref(false)
     const usersLoading = ref(false)
 
     // 数据库配置（仅管理员）
@@ -87,6 +84,10 @@ export default {
     const showLedgerModal = ref(false)
     const showCategoryModal = ref(false)
     const showAccountModal = ref(false)
+    const showAddUserModal = ref(false)
+
+    const showThemeColorPicker = ref(false)
+    const showBgColorPicker = ref(false)
 
     const activeTab = ref('profile')
 
@@ -499,29 +500,15 @@ export default {
       usersLoading.value = false
     }
 
-    const handleAddUser = async (e) => {
-      e.preventDefault()
-      if (!newUserUsername.value.trim() || !newUserPassword.value) {
-        actions.showToast('请填写用户名和密码', 'warning')
-        return
-      }
-      if (newUserPassword.value.length < 6) {
-        actions.showToast('密码至少 6 位', 'warning')
-        return
-      }
+    const createUserHandler = async (payload) => {
       const ok = await actions.addUser({
-        username: newUserUsername.value.trim().toLowerCase(),
-        email: newUserEmail.value.trim(),
-        password: newUserPassword.value,
-        is_admin: newUserIsAdmin.value
+        username: payload.username,
+        email: payload.email,
+        password: payload.password,
+        is_admin: payload.is_admin
       })
-      if (ok) {
-        newUserUsername.value = ''
-        newUserEmail.value = ''
-        newUserPassword.value = ''
-        newUserIsAdmin.value = false
-        loadUsers()
-      }
+      if (ok) loadUsers()
+      return ok
     }
 
     const toggleUserDisabled = async (user) => {
@@ -660,13 +647,10 @@ export default {
       avatarInputKey,
       isAdmin,
       users,
-      newUserUsername,
-      newUserEmail,
-      newUserPassword,
-      newUserIsAdmin,
       usersLoading,
       loadUsers,
-      handleAddUser,
+      showAddUserModal,
+      createUserHandler,
       toggleUserDisabled,
       toggleUserAdmin,
       handleDeleteUser,
@@ -696,7 +680,9 @@ export default {
       handlePluginCenterSave,
       updateCheckLoading,
       updateInfo,
-      handleCheckUpdate
+      handleCheckUpdate,
+      showThemeColorPicker,
+      showBgColorPicker
     }
   },
   template: `
@@ -1020,11 +1006,29 @@ export default {
             <div class="form-row">
               <div class="form-group">
                 <label>主题色</label>
-                <input v-model="pwaConfig.theme_color" type="text" placeholder="#E8A317">
+                <div class="color-input-row">
+                  <input v-model="pwaConfig.theme_color" type="text" placeholder="#E8A317">
+                  <div class="color-swatch-wrap">
+                    <button type="button" class="color-swatch" :style="{ background: pwaConfig.theme_color || '#E8A317' }" @click="showThemeColorPicker = !showThemeColorPicker" title="打开颜色选择"></button>
+                    <div v-if="showThemeColorPicker" class="color-picker-popover">
+                      <input type="color" v-model="pwaConfig.theme_color" title="选择主题色">
+                      <button type="button" class="btn btn-outline btn-sm" @click="showThemeColorPicker = false">完成</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-group">
                 <label>背景色</label>
-                <input v-model="pwaConfig.background_color" type="text" placeholder="#ffffff">
+                <div class="color-input-row">
+                  <input v-model="pwaConfig.background_color" type="text" placeholder="#ffffff">
+                  <div class="color-swatch-wrap">
+                    <button type="button" class="color-swatch" :style="{ background: pwaConfig.background_color || '#ffffff' }" @click="showBgColorPicker = !showBgColorPicker" title="打开颜色选择"></button>
+                    <div v-if="showBgColorPicker" class="color-picker-popover">
+                      <input type="color" v-model="pwaConfig.background_color" title="选择背景色">
+                      <button type="button" class="btn btn-outline btn-sm" @click="showBgColorPicker = false">完成</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="form-row">
@@ -1076,33 +1080,19 @@ export default {
         </div>
       </div>
       <div v-if="isAdmin" class="form-card">
-        <div class="card-header"><h3>👥 用户管理</h3></div>
+        <div class="card-header card-header-with-action">
+          <h3>👥 用户管理</h3>
+          <button type="button" class="btn btn-primary btn-add-sm" @click="showAddUserModal = true">
+            <span class="material-icons">person_add</span>
+            添加用户
+          </button>
+        </div>
         <div class="card-body">
-          <form @submit="handleAddUser" class="inline-form">
-            <div class="form-group">
-              <input v-model="newUserUsername" type="text" placeholder="登录名" required>
-            </div>
-            <div class="form-group">
-              <input v-model="newUserEmail" type="email" placeholder="邮箱">
-            </div>
-            <div class="form-group">
-              <input v-model="newUserPassword" type="password" placeholder="密码（至少6位）" required minlength="6">
-            </div>
-            <div class="form-group checkbox-group">
-              <label class="checkbox-label">
-                <input v-model="newUserIsAdmin" type="checkbox">
-                <span>管理员</span>
-              </label>
-            </div>
-            <button type="submit" class="btn btn-primary">
-              <span class="material-icons">person_add</span>
-              添加用户
-            </button>
-          </form>
           <div class="items-list" style="margin-top: 20px;">
             <div v-for="user in users" :key="user.username" class="item-card">
               <div class="item-info">
                 <span class="item-name">
+                  <span v-if="user.roles?.includes('admin')" class="material-icons admin-icon" title="管理员">admin_panel_settings</span>
                   {{ user.username }}
                   <span v-if="user.disabled" class="badge badge-danger">已停用</span>
                   <span v-else-if="user.roles?.includes('admin')" class="badge badge-admin">管理员</span>
@@ -1323,6 +1313,11 @@ export default {
         :ledgers="state.ledgers"
         @close="showAccountModal = false"
         @create="onAccountCreate"
+      />
+      <AddUserModal
+        :show="showAddUserModal"
+        :create-user="createUserHandler"
+        @close="showAddUserModal = false"
       />
     </div>
   `

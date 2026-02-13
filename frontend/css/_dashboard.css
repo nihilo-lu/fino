@@ -746,3 +746,71 @@
 .form-actions .btn {
     flex: 1;
 }
+
+/* PWA 主题色/背景色 - 颜色选择弹窗 */
+.color-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.color-input-row input[type="text"] {
+    flex: 1;
+}
+.color-swatch-wrap {
+    position: relative;
+}
+.color-swatch {
+    width: 40px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    padding: 0;
+    display: block;
+    flex-shrink: 0;
+}
+.color-swatch:hover {
+    box-shadow: 0 0 0 2px var(--primary-color);
+}
+.color-picker-popover {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.color-picker-popover input[type="color"] {
+    width: 80px;
+    height: 40px;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: var(--radius-sm);
+}
+.color-picker-popover .btn {
+    width: 100%;
+}
+
+/* 用户列表中管理员图标标识 */
+.item-card .admin-icon {
+    font-size: 18px;
+    color: var(--primary-color);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.item-card .item-info .item-name {
+    display: inline-flex;
+    align-items: center;
+}
+.item-card .item-info .item-name .admin-icon + .badge-admin {
+    margin-left: 2px;
+}
