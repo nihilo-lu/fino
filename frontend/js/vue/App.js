@@ -77,6 +77,11 @@ const showFundModal = ref(false)
     const registerError = ref('')
     const registerSuccess = ref('')
     const pageTitle = computed(() => PAGE_TITLES[currentPage.value] || '仪表盘')
+    const currentLedgerName = computed(() => {
+      if (!state.currentLedgerId) return ''
+      const ledger = state.ledgers.find((l) => l.id === state.currentLedgerId)
+      return ledger?.name || ''
+    })
     const userName = computed(() => state.user?.name || state.user?.username || '用户名')
     const navItems = computed(() => {
       const items = [...NAV_ITEMS_BASE]
@@ -222,6 +227,7 @@ const handleCreateLedger = async ({ name, description }) => {
       editingFund,
       showAiChat,
       pageTitle,
+      currentLedgerName,
       userName,
       navItems,
       handleLogin,
@@ -288,6 +294,7 @@ handleLedgerSelect,
           <Header
             v-if="currentPage !== 'chat'"
             :page-title="pageTitle"
+            :current-ledger-name="currentLedgerName"
             @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
           />
           <div v-if="currentPage === 'chat'" class="content-area content-area-chat">

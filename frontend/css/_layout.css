@@ -172,6 +172,29 @@
     letter-spacing: 0.2px;
 }
 
+.current-ledger {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--color-bg-secondary, #f8fafc);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.current-ledger-icon {
+    font-size: 16px;
+    opacity: 0.85;
+}
+
+.current-ledger-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
 .header-actions {
     margin-left: auto;
     display: flex;

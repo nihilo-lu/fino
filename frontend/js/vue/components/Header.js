@@ -1,7 +1,8 @@
 export default {
   name: 'Header',
   props: {
-    pageTitle: String
+    pageTitle: String,
+    currentLedgerName: { type: String, default: '' }
   },
   emits: ['toggle-sidebar'],
   template: `
@@ -11,6 +12,10 @@ export default {
       </button>
       <div class="page-title">
         <h2>{{ pageTitle }}</h2>
+      </div>
+      <div v-if="currentLedgerName" class="current-ledger" title="当前账本">
+        <span class="material-icons current-ledger-icon">book</span>
+        <span class="current-ledger-name">{{ currentLedgerName }}</span>
       </div>
     </header>
   `

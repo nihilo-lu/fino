@@ -1,10 +1,13 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useStore } from '../store/index.js'
 import PluginConfigModal from './PluginConfigModal.js'
+import AddLedgerModal from './AddLedgerModal.js'
+import AddCategoryModal from './AddCategoryModal.js'
+import AddAccountModal from './AddAccountModal.js'
 
 export default {
   name: 'SettingsView',
-  components: { PluginConfigModal },
+  components: { PluginConfigModal, AddLedgerModal, AddCategoryModal, AddAccountModal },
   emits: ['navigate'],
   setup(props, { emit }) {
     const { state, actions, isAdmin } = useStore()
@@ -81,6 +84,10 @@ export default {
     const showPluginConfigModal = ref(false)
     const pluginConfigTarget = ref(null)
 
+    const showLedgerModal = ref(false)
+    const showCategoryModal = ref(false)
+    const showAccountModal = ref(false)
+
     const activeTab = ref('profile')
 
     const tabs = computed(() => {
@@ -99,10 +106,7 @@ export default {
       activeTab.value = id
     }
 
-    const displayAccounts = computed(() => {
-      if (accountLedgerId.value === state.currentLedgerId) return state.accounts
-      return settingsAccounts.value
-    })
+    const displayAccounts = computed(() => state.accounts || [])
 
     const ACCOUNT_TYPE_ORDER = ['资产', '收入', '支出', '权益']
     const accountsByType = computed(() => {
@@ -314,6 +318,24 @@ export default {
       }
     }
 
+    const onLedgerCreate = async (payload) => {
+      const ok = await actions.createLedger(payload.name, payload.description)
+      if (ok) await actions.fetchLedgers()
+    }
+
+    const onCategoryCreate = async (payload) => {
+      const ok = await actions.createCategory(payload.name, payload.description)
+      if (ok) await loadCategories()
+    }
+
+    const onAccountCreate = async (payload) => {
+      const ok = await actions.createAccount(payload.ledgerId, payload.name, payload.type)
+      if (ok) {
+        await actions.fetchLedgers()
+        if (payload.ledgerId === state.currentLedgerId) await actions.fetchAccounts()
+      }
+    }
+
     const startEditLedger = (ledger) => {
       editingLedgerId.value = ledger.id
       editLedgerName.value = ledger.name
@@ -411,23 +433,13 @@ export default {
       })
       if (ok) {
         cancelEditAccount()
-        await loadSettingsAccounts()
-        await actions.fetchLedgers()
-        if (parseInt(accountLedgerId.value) === state.currentLedgerId) {
-          await actions.fetchAccounts()
-        }
+        await actions.fetchAccounts()
       }
     }
 
     const deleteAccount = async (id) => {
       const ok = await actions.deleteAccount(id)
-      if (ok) {
-        await loadSettingsAccounts()
-        await actions.fetchLedgers()
-        if (parseInt(accountLedgerId.value) === state.currentLedgerId) {
-          await actions.fetchAccounts()
-        }
-      }
+      if (ok) await actions.fetchAccounts()
     }
 
     const loadProfile = () => {
@@ -557,8 +569,6 @@ export default {
         console.warn('loadPluginCenterSetting failed:', e)
       }
       actions.fetchLedgers()
-      accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
-      loadSettingsAccounts()
       loadCategories()
       try {
         await loadPlugins()
@@ -570,10 +580,6 @@ export default {
         loadDatabaseConfig()
       }
     })
-    watch(() => state.ledgers, () => {
-      if (state.ledgers.length && !accountLedgerId.value) accountLedgerId.value = state.currentLedgerId || state.ledgers[0]?.id
-    }, { deep: true })
-    watch(accountLedgerId, loadSettingsAccounts)
     watch(activeTab, (tab) => {
       if (tab === 'plugins') loadPlugins()
     })
@@ -628,6 +634,12 @@ export default {
       toggleTokenVisibility,
       handleLedgerSubmit,
       handleAccountSubmit,
+      showLedgerModal,
+      showCategoryModal,
+      showAccountModal,
+      onLedgerCreate,
+      onCategoryCreate,
+      onAccountCreate,
       deleteLedger,
       deleteAccount,
       profileUsername,
@@ -810,26 +822,23 @@ export default {
       </div>
 
       <div v-show="activeTab === 'data'" class="settings-panel">
-      <div class="form-card">
-        <div class="card-header"><h3>账本管理</h3></div>
+      <div class="form-card form-card-data">
+        <div class="card-header card-header-with-action">
+          <h3>账本管理</h3>
+          <button type="button" class="btn btn-primary btn-add-sm" @click="showLedgerModal = true">
+            <span class="material-icons">add</span>
+            添加账本
+          </button>
+        </div>
         <div class="card-body">
-          <form @submit="handleLedgerSubmit" class="inline-form">
-            <div class="form-group">
-              <input v-model="newLedgerName" type="text" placeholder="新账本名称">
-            </div>
-            <div class="form-group">
-              <input v-model="newLedgerDesc" type="text" placeholder="账本描述">
-            </div>
-            <button type="submit" class="btn btn-primary">
-              <span class="material-icons">add</span>
-              添加账本
-            </button>
-          </form>
           <div class="items-list">
             <template v-for="ledger in state.ledgers" :key="ledger.id">
               <div v-if="editingLedgerId !== ledger.id" class="item-card">
                 <div class="item-info">
-                  <span class="item-name">{{ ledger.name }}</span>
+                  <div class="item-info-head">
+                    <span class="item-name">{{ ledger.name }}</span>
+                    <span v-if="ledger.id === state.currentLedgerId" class="badge-current">当前</span>
+                  </div>
                   <span class="item-desc">{{ ledger.description || '无描述' }} | {{ ledger.cost_method }}</span>
                 </div>
                 <div class="item-actions">
@@ -864,21 +873,15 @@ export default {
           </div>
         </div>
       </div>
-      <div class="form-card">
-        <div class="card-header"><h3>交易类别设置</h3></div>
+      <div class="form-card form-card-data">
+        <div class="card-header card-header-with-action">
+          <h3>交易类别设置</h3>
+          <button type="button" class="btn btn-primary btn-add-sm" @click="showCategoryModal = true">
+            <span class="material-icons">add</span>
+            添加类别
+          </button>
+        </div>
         <div class="card-body">
-          <form @submit="handleCategorySubmit" class="inline-form">
-            <div class="form-group">
-              <input v-model="newCategoryName" type="text" placeholder="类别名称">
-            </div>
-            <div class="form-group">
-              <input v-model="newCategoryDesc" type="text" placeholder="类别描述">
-            </div>
-            <button type="submit" class="btn btn-primary">
-              <span class="material-icons">add</span>
-              添加类别
-            </button>
-          </form>
           <div class="items-list">
             <template v-for="cat in categoriesList" :key="cat.id">
               <div v-if="editingCategoryId !== cat.id" class="item-card">
@@ -912,33 +915,16 @@ export default {
           </div>
         </div>
       </div>
-      <div class="form-card">
-        <div class="card-header"><h3>账户管理</h3></div>
+      <div class="form-card form-card-data">
+        <div class="card-header card-header-with-action">
+          <h3>账户管理</h3>
+          <button type="button" class="btn btn-primary btn-add-sm" @click="showAccountModal = true">
+            <span class="material-icons">add</span>
+            添加账户
+          </button>
+        </div>
         <div class="card-body">
-          <p class="form-hint" style="margin-bottom:12px;">支持添加收入、支出、权益、资产四类账户，无需设置币种。</p>
-          <form @submit="handleAccountSubmit" class="inline-form">
-            <div class="form-group">
-              <select v-model="accountLedgerId">
-                <option value="">选择账本</option>
-                <option v-for="l in state.ledgers" :key="l.id" :value="l.id">{{ l.name }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <input v-model="newAccountName" type="text" placeholder="账户名称">
-            </div>
-            <div class="form-group">
-              <select v-model="newAccountType">
-                <option value="资产">资产</option>
-                <option value="收入">收入</option>
-                <option value="支出">支出</option>
-                <option value="权益">权益</option>
-              </select>
-            </div>
-            <button type="submit" class="btn btn-primary">
-              <span class="material-icons">add</span>
-              添加账户
-            </button>
-          </form>
+          <p class="form-hint form-hint-inline">支持添加收入、支出、权益、资产四类账户，无需设置币种。以下为当前账本的账户。</p>
           <div class="accounts-by-type">
             <template v-for="group in accountsByType" :key="group.type">
               <div class="account-group">
@@ -1321,6 +1307,22 @@ export default {
         :plugin-id="pluginConfigTarget ? pluginConfigTarget.id : ''"
         :plugin-name="pluginConfigTarget ? pluginConfigTarget.name : ''"
         @close="showPluginConfigModal = false"
+      />
+      <AddLedgerModal
+        :show="showLedgerModal"
+        @close="showLedgerModal = false"
+        @create="onLedgerCreate"
+      />
+      <AddCategoryModal
+        :show="showCategoryModal"
+        @close="showCategoryModal = false"
+        @create="onCategoryCreate"
+      />
+      <AddAccountModal
+        :show="showAccountModal"
+        :ledgers="state.ledgers"
+        @close="showAccountModal = false"
+        @create="onAccountCreate"
       />
     </div>
   `
