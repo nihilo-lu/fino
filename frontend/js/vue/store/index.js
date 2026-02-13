@@ -24,7 +24,8 @@ const state = reactive({
   enabledPlugins: [],  // 已启用的插件 id 列表，用于控制 AI 按钮、网盘入口等
   pluginCenterEnabled: true,  // 是否在设置中显示插件中心
   dashboardRefreshTrigger: 0,   // 交易/资金明细变更时递增，供仪表盘 watch 后重新拉取数据
-  darkMode: getStoredDarkMode()
+  darkMode: getStoredDarkMode(),
+  aiChatUnread: false   // AI 助手有未读消息时在浮动按钮上显示提醒
 })
 
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
@@ -54,6 +55,10 @@ const actions = {
     state.darkMode = !state.darkMode
     try { localStorage.setItem('fino_dark_mode', state.darkMode ? '1' : '0') } catch (e) {}
     applyTheme(state.darkMode)
+  },
+
+  setAiChatUnread(unread) {
+    state.aiChatUnread = !!unread
   },
 
   async checkAuth() {
@@ -142,6 +147,7 @@ const actions = {
     } catch (e) { /* ignore */ }
     state.user = null
     state.isAuthenticated = false
+    state.aiChatUnread = false
     state.ledgers = []
     state.accounts = []
     state.currentLedgerId = null

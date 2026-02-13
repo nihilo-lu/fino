@@ -1,8 +1,9 @@
 /**
  * 可拖动的 AI 聊天入口按钮
- * 固定在右下角，可拖动到任意位置
+ * 固定在右下角，可拖动到任意位置；有未读消息时显示提醒角标
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useStore } from '../store/index.js'
 
 const STORAGE_KEY = 'ai_chat_button_pos'
 
@@ -10,6 +11,7 @@ export default {
   name: 'AiChatButton',
   emits: ['click'],
   setup(props, { emit }) {
+    const { state } = useStore()
     const x = ref(0)
     const y = ref(0)
     const isDragging = ref(false)
@@ -117,7 +119,8 @@ export default {
       style,
       isDragging,
       onPointerDown,
-      onClick
+      onClick,
+      hasUnread: computed(() => state.aiChatUnread)
     }
   },
   template: `
@@ -127,8 +130,9 @@ export default {
       @pointerdown="onPointerDown"
       @click="onClick"
     >
-      <div class="ai-chat-btn-icon" title="AI 助手">
+      <div class="ai-chat-btn-icon" :class="{ 'has-unread': hasUnread }" :title="hasUnread ? 'AI 助手（有未读消息）' : 'AI 助手'">
         <span class="material-icons">smart_toy</span>
+        <span v-if="hasUnread" class="ai-chat-fab-badge" aria-label="未读消息"></span>
       </div>
     </div>
   `

@@ -18,6 +18,7 @@ export default {
       show_thinking: true,
       context_messages: 20,
       avatar_url: '',
+      assistant_name: 'AI 助手',
       system_prompt: ''
     })
     const aiConfigSaving = ref(false)
@@ -170,7 +171,8 @@ export default {
       handleCloudreveBind,
       handleCloudreveUnbind,
       handleCloudreveOpenLogin,
-      hasConfig
+      hasConfig,
+      aiPromptVar: '{{assistant_name}}'
     }
   },
   template: `
@@ -223,9 +225,14 @@ export default {
                 <p class="form-hint">设置后将在聊天窗口标题和助手消息旁显示该头像。</p>
               </div>
               <div class="form-group">
+                <label>助手昵称</label>
+                <input v-model="aiConfig.assistant_name" type="text" placeholder="AI 助手">
+                <p class="form-hint">显示在聊天窗口标题；系统提示词中可用 <code>{{ aiPromptVar }}</code> 作为变量，发送时会被替换为该昵称。</p>
+              </div>
+              <div class="form-group">
                 <label>系统提示词</label>
                 <textarea v-model="aiConfig.system_prompt" rows="6" placeholder="设定 AI 助手的角色与行为，留空使用默认提示词。"></textarea>
-                <p class="form-hint">用于设定助手身份与回答风格，对话时会作为 system 消息发送给模型。</p>
+                <p class="form-hint">用于设定助手身份与回答风格，对话时会作为 system 消息发送给模型。可使用变量 <code>{{ aiPromptVar }}</code>。</p>
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" :disabled="aiConfigSaving">

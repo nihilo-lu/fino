@@ -83,17 +83,21 @@ export default {
     const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
     const attachments = ref([]) // { type: 'image'|'file', data?, mime?, name?, text?, preview? }
     const thinkingCollapsed = ref({}) // idx -> true 表示折叠
-    const aiConfig = ref({ avatar_url: '', show_thinking: true, system_prompt: '' })
+    const aiConfig = ref({ avatar_url: '', show_thinking: true, assistant_name: 'AI 助手', system_prompt: '' })
     const useToolsEnabled = ref(false)
     const isRecording = ref(false)
     const voiceSupport = ref(false)
     const thinkingElapsed = ref(0) // 思考中读秒
     const ttsEnabled = ref(false) // 语音播放 AI 回复
     const showSettingsModal = ref(false)
-    const settingsForm = ref({ avatar_url: '', show_thinking: true, system_prompt: '' })
+    const settingsForm = ref({ avatar_url: '', show_thinking: true, assistant_name: 'AI 助手', system_prompt: '' })
     const settingsSaving = ref(false)
+    const showAddMenu = ref(false)
+    const showToolsMenu = ref(false)
     /** 小窗模式下的当前会话 id，与 /chat 页共用同一套会话列表 */
     const floatingSessionId = ref(null)
+    /** 最后一条助手消息是否已阅（仅小窗：消息全部生成且用户已读后才为 true） */
+    const latestAssistantRead = ref(true)
     let thinkingTimerId = null
     let recognition = null
     let abortController = null
@@ -256,6 +260,7 @@ export default {
       settingsForm.value = {
         avatar_url: aiConfig.value.avatar_url || '',
         show_thinking: !!aiConfig.value.show_thinking,
+        assistant_name: aiConfig.value.assistant_name || 'AI 助手',
         system_prompt: aiConfig.value.system_prompt || ''
       }
       showSettingsModal.value = true
@@ -430,8 +435,16 @@ export default {
       return style
     })
 
+    const markLatestAssistantRead = () => {
+      const list = messages.value.filter(m => !m.streaming)
+      if (list.length > 0 && list[list.length - 1]?.role === 'assistant') {
+        latestAssistantRead.value = true
+      }
+    }
+
     watch(() => props.show, (v) => {
       if (v) {
+        actions.setAiChatUnread(false)
         loadWindowPosition()
         if (props.standalone) {
           loadChatHistory().then(() => {
@@ -445,11 +458,18 @@ export default {
           })
           return
         }
-        // 小窗：与 /chat 页共用会话，拉取最近一条或新建并加载
-        initFloatingSession().then(() => {
+        // 小窗：首次打开时拉取会话；再次打开时沿用已有内容，避免刷新闪烁
+        if (floatingSessionId.value != null) {
           fetchAiConfig()
           scrollToBottom()
-        })
+          markLatestAssistantRead()
+        } else {
+          initFloatingSession().then(() => {
+            fetchAiConfig()
+            scrollToBottom()
+            markLatestAssistantRead()
+          })
+        }
       }
     })
 
@@ -593,6 +613,7 @@ export default {
       attachments.value = []
       loading.value = true
 
+      if (!props.standalone) latestAssistantRead.value = false
       const assistantMsg = reactive({
         role: 'assistant',
         content: '',
@@ -612,7 +633,9 @@ export default {
         role: m.role,
         content: typeof m.content === 'string' ? m.content : (m.content && m.content.text) || ''
       }))
-      const systemPrompt = (aiConfig.value.system_prompt || '').trim() || DEFAULT_SYSTEM_PROMPT
+      const rawPrompt = (aiConfig.value.system_prompt || '').trim() || DEFAULT_SYSTEM_PROMPT
+      const assistantName = (aiConfig.value.assistant_name || '').trim() || 'AI 助手'
+      const systemPrompt = rawPrompt.replace(/\{\{assistant_name\}\}/g, assistantName)
       chatMessages.unshift({ role: 'system', content: systemPrompt })
       chatMessages.push({ role: 'user', content: userContent })
 
@@ -691,6 +714,7 @@ export default {
         if (ttsEnabled.value && assistantMsg.content) {
           speakText(assistantMsg.content)
         }
+        if (!props.standalone && props.show) latestAssistantRead.value = true
       }
     }
 
@@ -750,6 +774,34 @@ export default {
 
     const toggleTools = () => {
       useToolsEnabled.value = !useToolsEnabled.value
+    }
+
+    const closeMenus = () => {
+      showAddMenu.value = false
+      showToolsMenu.value = false
+    }
+
+    watch([showAddMenu, showToolsMenu], ([add, tools]) => {
+      if (add || tools) {
+        nextTick(() => {
+          setTimeout(() => {
+            document.addEventListener('click', closeMenus, { once: true })
+          }, 0)
+        })
+      }
+    })
+
+    const handleClose = () => {
+      if (!props.standalone) {
+        const list = messages.value
+        const last = list.length > 0 ? list[list.length - 1] : null
+        const lastIsAssistant = last?.role === 'assistant'
+        const lastStillStreaming = !!last?.streaming
+        if (lastIsAssistant && (lastStillStreaming || !latestAssistantRead.value)) {
+          actions.setAiChatUnread(true)
+        }
+      }
+      emit('close')
     }
 
     const stopRequest = () => {
@@ -859,11 +911,16 @@ export default {
       settingsSaving,
       openChatSettings,
       closeChatSettings,
-      saveChatSettings
+      saveChatSettings,
+      showAddMenu,
+      showToolsMenu,
+      closeMenus,
+      handleClose,
+      promptVariablePlaceholder: '{{assistant_name}}'
     }
   },
   template: `
-    <div v-if="show" :class="['ai-chat-window', { maximized, dragging: isDragging, resizing: resizeDir, standalone }]" :style="windowStyle">
+    <div v-show="show" :class="['ai-chat-window', { maximized, dragging: isDragging, resizing: resizeDir, standalone }]" :style="windowStyle">
       <div class="ai-chat-header ai-chat-header-draggable" @pointerdown="onHeaderPointerDown">
         <div class="ai-chat-header-title">
           <img
@@ -873,7 +930,7 @@ export default {
             class="ai-chat-header-avatar"
           />
           <span v-else class="ai-chat-header-avatar-placeholder material-icons">smart_toy</span>
-          <h3>AI 助手</h3>
+          <h3>{{ aiConfig.assistant_name || 'AI 助手' }}</h3>
         </div>
         <div class="ai-chat-header-actions">
           <button type="button" class="btn-icon" :title="ttsEnabled ? '关闭语音播放' : '开启语音播放'" :class="{ active: ttsEnabled }" @click="toggleTts">
@@ -888,7 +945,7 @@ export default {
           <button v-if="!standalone" type="button" class="btn-icon" :title="maximized ? '还原' : '最大化'" @click="toggleMaximize">
             <span class="material-icons">{{ maximized ? 'fullscreen_exit' : 'fullscreen' }}</span>
           </button>
-          <button type="button" class="btn-icon" title="关闭" @click="$emit('close')">
+          <button type="button" class="btn-icon" title="关闭" @click="handleClose">
             <span class="material-icons">close</span>
           </button>
         </div>
@@ -1004,14 +1061,65 @@ export default {
           <textarea
             v-model="inputText"
             placeholder="输入消息，Enter 发送"
-            rows="2"
+            rows="3"
             :disabled="loading"
             @keydown="handleKeydown"
             class="ai-chat-input"
           />
-          <button v-if="voiceSupport" type="button" class="ai-chat-input-mic" :class="{ recording: isRecording }" :title="isRecording ? '停止' : '语音输入'" @mousedown="startVoiceInput" @mouseup="stopVoiceInput" @mouseleave="stopVoiceInput">
-            <span class="material-icons">{{ isRecording ? 'stop' : 'mic' }}</span>
-          </button>
+          <div class="ai-chat-input-inner">
+            <div class="ai-chat-input-inner-left">
+              <div class="ai-chat-add-wrap">
+                <button type="button" class="ai-chat-inner-btn" title="添加" @click.stop="showAddMenu = !showAddMenu">
+                  <span class="material-icons">add</span>
+                </button>
+                <div v-if="showAddMenu" class="ai-chat-dropdown" @click.stop>
+                  <button type="button" class="ai-chat-dropdown-item" @click="triggerFileInput('image/*'); showAddMenu = false">
+                    <span class="material-icons">image</span> 上传图片
+                  </button>
+                  <button type="button" class="ai-chat-dropdown-item" @click="triggerFileInput(); showAddMenu = false">
+                    <span class="material-icons">attach_file</span> 上传附件
+                  </button>
+                </div>
+              </div>
+              <div class="ai-chat-tools-wrap">
+                <button type="button" class="ai-chat-inner-btn ai-chat-tools-btn" :class="{ active: useToolsEnabled }" title="工具" @click.stop="showToolsMenu = !showToolsMenu">
+                  <span class="material-icons">build</span>
+                </button>
+                <div v-if="showToolsMenu" class="ai-chat-dropdown" @click.stop>
+                  <button type="button" class="ai-chat-dropdown-item" :class="{ active: useToolsEnabled }" @click="toggleTools">
+                    <span class="material-icons">terminal</span> 启用沙箱执行
+                    <span v-if="useToolsEnabled" class="material-icons ai-chat-check">check</span>
+                  </button>
+                  <button type="button" class="ai-chat-dropdown-item" @click="clearChat(); showToolsMenu = false">
+                    <span class="material-icons">delete_sweep</span> 清除聊天记录
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="ai-chat-input-inner-right">
+              <button v-if="voiceSupport" type="button" class="ai-chat-inner-btn" :class="{ recording: isRecording }" :title="isRecording ? '停止' : '语音输入'" @mousedown="startVoiceInput" @mouseup="stopVoiceInput" @mouseleave="stopVoiceInput">
+                <span class="material-icons">{{ isRecording ? 'stop' : 'mic' }}</span>
+              </button>
+              <button
+                v-if="loading"
+                type="button"
+                class="ai-chat-inner-btn ai-chat-stop-btn"
+                title="停止生成"
+                @click="stopRequest"
+              >
+                <span class="material-icons">stop_circle</span>
+              </button>
+              <button
+                type="button"
+                class="ai-chat-inner-btn ai-chat-send-btn"
+                :disabled="(!inputText.trim() && !attachments.length) || loading"
+                :title="loading ? '发送中' : '发送'"
+                @click="handleSend"
+              >
+                <span class="material-icons">send</span>
+              </button>
+            </div>
+          </div>
         </div>
         <div v-if="attachments.length" class="ai-chat-attach-list">
           <template v-for="(att, idx) in attachments" :key="idx">
@@ -1021,38 +1129,6 @@ export default {
             </span>
             <span v-else class="ai-chat-attach-name">📎 {{ att.name || '文件' }} <button type="button" class="ai-chat-attach-remove" @click="removeAttachment(idx)">×</button></span>
           </template>
-        </div>
-        <div class="ai-chat-input-actions">
-          <button type="button" class="ai-chat-action-btn" title="清除聊天记录" @click="clearChat">
-            <span class="material-icons">delete_sweep</span>
-          </button>
-          <button type="button" class="ai-chat-action-btn" :class="{ active: useToolsEnabled }" title="允许助手调用数据（沙箱执行 Python）" @click="toggleTools">
-            <span class="material-icons">code</span>
-          </button>
-          <button type="button" class="ai-chat-action-btn" title="上传图片" @click="triggerFileInput('image/*')">
-            <span class="material-icons">image</span>
-          </button>
-          <button type="button" class="ai-chat-action-btn" title="上传文件" @click="triggerFileInput()">
-            <span class="material-icons">attach_file</span>
-          </button>
-          <button
-            v-if="loading"
-            type="button"
-            class="ai-chat-action-btn ai-chat-stop-btn"
-            title="停止生成"
-            @click="stopRequest"
-          >
-            <span class="material-icons">stop_circle</span>
-          </button>
-          <button
-            type="button"
-            class="ai-chat-action-btn ai-chat-send-btn"
-            :disabled="(!inputText.trim() && !attachments.length) || loading"
-            :title="loading ? '发送中' : '发送'"
-            @click="handleSend"
-          >
-            <span class="material-icons">send</span>
-          </button>
         </div>
       </div>
       <template v-if="!maximized">
@@ -1074,6 +1150,11 @@ export default {
               <div class="form-group">
                 <label>AI 头像 URL</label>
                 <input v-model="settingsForm.avatar_url" type="url" placeholder="https://...（留空使用默认图标）">
+              </div>
+              <div class="form-group">
+                <label>助手昵称</label>
+                <input v-model="settingsForm.assistant_name" type="text" placeholder="AI 助手">
+                <p class="form-hint">显示在聊天窗口标题；提示词中可用 <code>{{ promptVariablePlaceholder }}</code> 变量引用该昵称。</p>
               </div>
               <div class="form-group checkbox-group">
                 <label class="checkbox-label">

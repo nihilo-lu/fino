@@ -24,6 +24,7 @@ _DEFAULT_AI = {
     "show_thinking": True,
     "context_messages": 20,
     "avatar_url": "",
+    "assistant_name": "AI 助手",
     "system_prompt": _DEFAULT_SYSTEM_PROMPT,
 }
 
@@ -114,6 +115,7 @@ def get_ai_config():
             "show_thinking": cfg.get("show_thinking", True),
             "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
             "avatar_url": cfg.get("avatar_url", "") or "",
+            "assistant_name": cfg.get("assistant_name", _DEFAULT_AI["assistant_name"]) or _DEFAULT_AI["assistant_name"],
             "system_prompt": cfg.get("system_prompt") or _DEFAULT_SYSTEM_PROMPT,
         }
     else:
@@ -122,6 +124,7 @@ def get_ai_config():
             "show_thinking": cfg.get("show_thinking", True),
             "context_messages": int(cfg.get("context_messages", _DEFAULT_AI["context_messages"])),
             "avatar_url": cfg.get("avatar_url", "") or "",
+            "assistant_name": cfg.get("assistant_name", _DEFAULT_AI["assistant_name"]) or _DEFAULT_AI["assistant_name"],
             "system_prompt": cfg.get("system_prompt") or _DEFAULT_SYSTEM_PROMPT,
         }
     return api_success(data=out)
@@ -154,6 +157,8 @@ def save_ai_config():
             pass
     if "avatar_url" in body:
         cfg["avatar_url"] = (body["avatar_url"] or "").strip()
+    if "assistant_name" in body:
+        cfg["assistant_name"] = (body["assistant_name"] or "").strip() or _DEFAULT_AI["assistant_name"]
     if "system_prompt" in body:
         cfg["system_prompt"] = (body["system_prompt"] or "").strip() or _DEFAULT_SYSTEM_PROMPT
     if not _save_ai_config(cfg):

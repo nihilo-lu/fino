@@ -132,6 +132,11 @@ const handleCreateLedger = async ({ name, description }) => {
       showAddLedgerModal.value = false
     }
 
+    const handleOpenAiChat = () => {
+      actions.setAiChatUnread(false)
+      showAiChat.value = true
+    }
+
     const handleRegister = async (formData) => {
       registerError.value = ''
       registerSuccess.value = ''
@@ -247,6 +252,7 @@ handleLedgerSelect,
       showAddLedgerModal,
       handleShowAddLedgerModal,
       handleAddLedgerModalClose,
+      handleOpenAiChat,
       loginError,
       registerError,
       registerSuccess
@@ -363,7 +369,7 @@ handleLedgerSelect,
         @close="handleAddLedgerModalClose"
         @create="handleCreateLedger"
       />
-      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat') && currentPage !== 'chat'" @click="showAiChat = true" />
+      <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat') && currentPage !== 'chat'" @click="handleOpenAiChat" />
       <AiChatWindow
         v-if="currentPage !== 'chat'"
         :show="showAiChat"
