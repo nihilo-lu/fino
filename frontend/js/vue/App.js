@@ -1,25 +1,27 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useStore } from './store/index.js'
 import { getPageFromPath, pushState, replaceState, initRouter } from './utils/router.js'
 
+// 首屏登录/注册/选账本必须同步加载，其余按需懒加载以加快登录页打开速度
 import LoginPage from './components/LoginPage.js'
 import RegisterPage from './components/RegisterPage.js'
 import LedgerSelectPage from './components/LedgerSelectPage.js'
-import Sidebar from './components/Sidebar.js'
-import Header from './components/Header.js'
-import DashboardView from './components/DashboardView.js'
-import TransactionsView from './components/TransactionsView.js'
-import FundsView from './components/FundsView.js'
-import AnalysisView from './components/AnalysisView.js'
-import SettingsView from './components/SettingsView.js'
-import ApiDocsView from './components/ApiDocsView.js'
-import CloudStorageView from './components/CloudStorageView.js'
 import Toast from './components/Toast.js'
-import FundModal from './components/FundModal.js'
-import AddLedgerModal from './components/AddLedgerModal.js'
-import AiChatButton from './components/AiChatButton.js'
-import AiChatWindow from './components/AiChatWindow.js'
-import AiChatPage from './components/AiChatPage.js'
+
+const Sidebar = defineAsyncComponent(() => import('./components/Sidebar.js'))
+const Header = defineAsyncComponent(() => import('./components/Header.js'))
+const DashboardView = defineAsyncComponent(() => import('./components/DashboardView.js'))
+const TransactionsView = defineAsyncComponent(() => import('./components/TransactionsView.js'))
+const FundsView = defineAsyncComponent(() => import('./components/FundsView.js'))
+const AnalysisView = defineAsyncComponent(() => import('./components/AnalysisView.js'))
+const SettingsView = defineAsyncComponent(() => import('./components/SettingsView.js'))
+const ApiDocsView = defineAsyncComponent(() => import('./components/ApiDocsView.js'))
+const CloudStorageView = defineAsyncComponent(() => import('./components/CloudStorageView.js'))
+const FundModal = defineAsyncComponent(() => import('./components/FundModal.js'))
+const AddLedgerModal = defineAsyncComponent(() => import('./components/AddLedgerModal.js'))
+const AiChatButton = defineAsyncComponent(() => import('./components/AiChatButton.js'))
+const AiChatWindow = defineAsyncComponent(() => import('./components/AiChatWindow.js'))
+const AiChatPage = defineAsyncComponent(() => import('./components/AiChatPage.js'))
 
 const PAGE_TITLES = {
   dashboard: '仪表盘',
@@ -358,21 +360,23 @@ handleLedgerSelect,
       </div>
 
       <Toast />
-<FundModal
-        :show="showFundModal"
+      <FundModal
+        v-if="showFundModal"
+        :show="true"
         :edit-fund="editingFund"
         @close="handleFundModalClose"
         @submitted="handleFundSubmitted"
       />
       <AddLedgerModal
-        :show="showAddLedgerModal"
+        v-if="showAddLedgerModal"
+        :show="true"
         @close="handleAddLedgerModalClose"
         @create="handleCreateLedger"
       />
       <AiChatButton v-if="state.isAuthenticated && state.currentLedgerId && state.pluginCenterEnabled && state.enabledPlugins?.includes('fino-ai-chat') && currentPage !== 'chat'" @click="handleOpenAiChat" />
       <AiChatWindow
-        v-if="currentPage !== 'chat'"
-        :show="showAiChat"
+        v-if="currentPage !== 'chat' && showAiChat"
+        :show="true"
         @close="showAiChat = false"
       />
     </div>

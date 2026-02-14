@@ -43,11 +43,8 @@ def create_app(config_path: str | None = None) -> Flask:
     static_folder = os.path.join(base_dir, "frontend")
     uploads_folder = os.path.join(base_dir, "uploads")
 
-    app = Flask(
-        __name__,
-        static_folder=static_folder,
-        static_url_path="/frontend",
-    )
+    # 不注册 Flask 自带的 /frontend 静态路由，改由 main 蓝图统一提供（便于对 styles.css 做合并等优化）
+    app = Flask(__name__, static_folder=None, static_url_path=None)
 
     # 1. 加载配置
     app.config["CONFIG_PATH"] = config_path

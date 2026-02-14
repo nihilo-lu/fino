@@ -3,7 +3,8 @@
 """
 
 from datetime import datetime
-from flask import Blueprint, send_from_directory, current_app, request, jsonify
+import os
+from flask import Blueprint, send_from_directory, current_app, request, jsonify, Response
 
 from app.utils import api_success, api_error
 
@@ -518,11 +519,31 @@ def serve_sw():
     return send_from_directory(static_folder, "sw.js", mimetype="application/javascript")
 
 
+# 主站 CSS 合并列表（与 frontend/css/styles.css 中 @import 顺序一致），一次响应减少请求数
+_CSS_BUNDLE_FILES = [
+    "_variables.css", "_base.css", "_auth.css", "_components.css",
+    "_layout.css", "_dashboard.css", "_fund.css", "_api-docs.css", "_media.css",
+]
+
+
 @main_bp.route("/frontend/<path:filename>")
 def serve_static(filename):
     if current_app.config.get("API_ONLY"):
         return jsonify({"error": "Not found"}), 404
     static_folder = current_app.config.get("STATIC_FOLDER", "frontend")
+    # 主站 CSS 合并为一次响应，避免浏览器对 @import 的链式请求
+    if filename == "css/styles.css":
+        css_dir = os.path.join(static_folder, "css")
+        parts = []
+        for name in _CSS_BUNDLE_FILES:
+            path = os.path.join(css_dir, name)
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    parts.append(f.read())
+        resp = Response("\n".join(parts), mimetype="text/css; charset=utf-8")
+        resp.headers["Cache-Control"] = "public, max-age=3600"
+        resp.headers["X-Served-As"] = "css-bundle"  # 便于确认命中合并逻辑
+        return resp
     return send_from_directory(static_folder, filename)
 
 
