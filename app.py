@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from app import create_app
 from app.config import get_config_path
 
-PORT = 8088
+PORT = 8001
 URL = f"http://localhost:{PORT}"
 
 

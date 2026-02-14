@@ -107,11 +107,14 @@ def get_account_balances():
         for _, row in accounts.iterrows():
             acc_id = int(row["id"])
             bal = database.get_account_balance(acc_id)
+            cash_by_currency = database.get_account_cash_balance_by_currency(acc_id)
             balances.append({
                 "account_id": acc_id,
                 "account_name": row.get("name", ""),
                 "account_type": row.get("type", ""),
+                "currency": row.get("currency", "CNY"),
                 "balance": float(bal.get("balance", 0)),
+                "cash_balances": cash_by_currency,
                 "total_invest": float(bal.get("total_invest", 0)),
                 "total_withdraw": float(bal.get("total_withdraw", 0)),
                 "total_income": float(bal.get("total_income", 0)),

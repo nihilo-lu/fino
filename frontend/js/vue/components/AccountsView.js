@@ -8,6 +8,7 @@ export default {
   setup(props, { emit }) {
     const { state, actions } = useStore()
     const selectedAccountId = ref(null)
+    const collapsedGroups = ref({}) // { '资产': true, '收入': false, ... }  true=已折叠
     const accountBalances = ref([])
     const balancesLoading = ref(false)
     const accountStats = ref({ total_cost_cny: 0, total_value_cny: 0, total_profit_cny: 0, profit_rate: 0, position_count: 0 })
@@ -18,10 +19,31 @@ export default {
 
     const displayAccounts = computed(() => state.accounts || [])
 
+    const ACCOUNT_TYPE_ORDER = ['资产', '负债', '收入', '支出', '权益']
+    const accountsByType = computed(() => {
+      const list = accountBalances.value || []
+      const map = new Map()
+      ACCOUNT_TYPE_ORDER.forEach(t => map.set(t, []))
+      list.forEach(b => {
+        const t = b.account_type || '其他'
+        if (!map.has(t)) map.set(t, [])
+        map.get(t).push(b)
+      })
+      return ACCOUNT_TYPE_ORDER.map(type => ({ type, accounts: map.get(type) || [] }))
+        .concat(
+          Array.from(map.entries())
+            .filter(([type]) => !ACCOUNT_TYPE_ORDER.includes(type))
+            .map(([type, accounts]) => ({ type, accounts }))
+        )
+        .filter(g => g.accounts.length > 0)
+    })
+
     const selectedAccount = computed(() => {
       if (!selectedAccountId.value) return null
       return displayAccounts.value.find(a => a.id === selectedAccountId.value)
     })
+
+    const isAssetAccount = computed(() => selectedAccount.value?.type === '资产')
 
     const loadBalances = async () => {
       if (!state.currentLedgerId) {
@@ -38,7 +60,7 @@ export default {
     }
 
     const loadAccountDetail = async (accountId) => {
-      if (!state.currentLedgerId) {
+      if (!state.currentLedgerId || accountId == null) {
         accountStats.value = { total_cost_cny: 0, total_value_cny: 0, total_profit_cny: 0, profit_rate: 0, position_count: 0 }
         accountPositions.value = []
         accountTransactions.value = []
@@ -47,20 +69,40 @@ export default {
       }
       detailLoading.value = true
       try {
-        const [statsRes, posRes, transRes, fundsRes] = await Promise.all([
-          actions.fetchPortfolioStats(accountId),
-          actions.fetchPositions(accountId),
+        const bal = accountBalances.value.find(b => b.account_id === accountId)
+        const isAsset = (bal?.account_type || displayAccounts.value.find(a => a.id === accountId)?.type) === '资产'
+        const promises = [
           actions.fetchTransactions({ account_id: accountId, limit: 15, offset: 0 }),
           actions.fetchFundTransactions({ account_id: accountId, limit: 15 })
-        ])
-        accountStats.value = statsRes?.stats || statsRes?.data?.stats || accountStats.value
-        accountPositions.value = posRes?.positions ?? posRes?.data?.positions ?? []
+        ]
+        if (isAsset) {
+          promises.unshift(actions.fetchPortfolioStats(accountId))
+          promises.splice(1, 0, actions.fetchPositions(accountId))
+        }
+        const results = await Promise.all(promises)
+        let transRes, fundsRes
+        if (isAsset) {
+          accountStats.value = results[0]?.stats || results[0]?.data?.stats || accountStats.value
+          accountPositions.value = results[1]?.positions ?? results[1]?.data?.positions ?? []
+          transRes = results[2]
+          fundsRes = results[3]
+        } else {
+          accountStats.value = { total_cost_cny: 0, total_value_cny: 0, total_profit_cny: 0, profit_rate: 0, position_count: 0 }
+          accountPositions.value = []
+          transRes = results[0]
+          fundsRes = results[1]
+        }
         accountTransactions.value = transRes?.transactions ?? transRes?.data?.transactions ?? []
         accountFunds.value = fundsRes?.fund_transactions ?? fundsRes?.data?.fund_transactions ?? []
       } finally {
         detailLoading.value = false
       }
     }
+
+    const selectedAccountCash = computed(() => {
+      if (!selectedAccountId.value) return null
+      return accountBalances.value.find(b => b.account_id === selectedAccountId.value)
+    })
 
     const balanceByCurrency = computed(() => {
       const list = accountPositions.value || []
@@ -81,6 +123,14 @@ export default {
       return accountBalances.value.reduce((sum, b) => sum + (Number(b.balance) || 0), 0)
     })
 
+    /** 格式化多币种现金余额展示 */
+    const formatCashBalances = (b) => {
+      const list = b?.cash_balances || []
+      if (list.length === 0) return formatCurrency(b?.balance ?? 0)
+      if (list.length === 1) return formatCurrency(list[0].balance, list[0].currency)
+      return list.map(cb => formatCurrency(cb.balance, cb.currency)).join(' · ')
+    }
+
     const goToTransactions = () => {
       if (selectedAccountId.value) actions.setCurrentAccount(selectedAccountId.value)
       emit('navigate', 'transactions')
@@ -93,6 +143,17 @@ export default {
 
     const selectAccountForDetail = (id) => {
       selectedAccountId.value = id
+    }
+
+    const toggleGroup = (type) => {
+      collapsedGroups.value = { ...collapsedGroups.value, [type]: !collapsedGroups.value[type] }
+    }
+
+    const isGroupCollapsed = (type) => !!collapsedGroups.value[type]
+
+    const getGroupSummary = (group) => {
+      const total = group.accounts.reduce((sum, b) => sum + (Number(b.balance) || 0), 0)
+      return { count: group.accounts.length, total }
     }
 
     onMounted(async () => {
@@ -112,18 +173,29 @@ export default {
       loadAccountDetail(selectedAccountId.value ?? null)
     })
 
+    const assetTotalCash = computed(() => {
+      const assetBalances = (accountBalances.value || []).filter(b => b.account_type === '资产')
+      return assetBalances.reduce((sum, b) => sum + (Number(b.balance) || 0), 0)
+    })
+
     return {
       state,
       actions,
       formatCurrency,
+      formatCashBalances,
       displayAccounts,
       selectedAccountId,
       selectedAccount,
       accountBalances,
+      accountsByType,
+      collapsedGroups,
       balancesLoading,
       totalCashBalance,
+      assetTotalCash,
       accountStats,
       accountPositions,
+      selectedAccountCash,
+      isAssetAccount,
       balanceByCurrency,
       accountTransactions,
       accountFunds,
@@ -132,7 +204,10 @@ export default {
       loadAccountDetail,
       goToTransactions,
       goToFunds,
-      selectAccountForDetail
+      selectAccountForDetail,
+      toggleGroup,
+      isGroupCollapsed,
+      getGroupSummary
     }
   },
   template: `
@@ -173,55 +248,79 @@ export default {
               <p>暂无账户</p>
             </div>
             <div v-else class="accounts-list">
-              <div
-                v-for="b in accountBalances"
-                :key="b.account_id"
-                :class="['account-card', { 'active': selectedAccountId === b.account_id }]"
-                @click="selectAccountForDetail(b.account_id)"
-              >
-                <div class="account-card-header">
-                  <div class="account-avatar">{{ (b.account_name || '').charAt(0) }}</div>
-                  <div class="account-info">
-                    <div class="account-name">{{ b.account_name }}</div>
-                    <div class="account-meta">
-                      <span class="account-type">{{ b.account_type }}</span>
-                    </div>
-                  </div>
-                  <div :class="['account-balance', { 'negative': (b.balance || 0) < 0 }]">
-                    {{ formatCurrency(b.balance) }}
-                  </div>
-                </div>
-                <div class="account-card-detail">
-                  <div class="account-detail-item">
-                    <span class="detail-label">投入</span>
-                    <span class="detail-value">{{ formatCurrency(b.total_invest || 0) }}</span>
-                  </div>
-                  <div class="account-detail-item">
-                    <span class="detail-label">当前</span>
-                    <span :class="['detail-value', { 'negative': (b.balance || 0) < 0 }]">
-                      {{ formatCurrency(b.balance) }}
+              <template v-for="group in accountsByType" :key="group.type">
+                <div class="account-group-block">
+                  <div
+                    class="account-group-title account-group-title-clickable"
+                    :class="{ 'collapsed': isGroupCollapsed(group.type) }"
+                    @click="toggleGroup(group.type)"
+                  >
+                    <span class="material-icons group-chevron">{{ isGroupCollapsed(group.type) ? 'expand_more' : 'expand_less' }}</span>
+                    <span class="group-title-text">{{ group.type }}</span>
+                    <span v-if="isGroupCollapsed(group.type)" class="group-summary">
+                      {{ getGroupSummary(group).count }} 个账户 · {{ formatCurrency(getGroupSummary(group).total) }}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              <!-- 总计卡片 -->
-              <div v-if="accountBalances.length > 1" class="account-card account-total-card">
-                <div class="account-card-header">
-                  <div class="account-avatar total-avatar">
-                    <span class="material-icons">calculate</span>
-                  </div>
-                  <div class="account-info">
-                    <div class="account-name">全部账户</div>
-                    <div class="account-meta">
-                      <span class="account-type">总计</span>
+                  <template v-if="!isGroupCollapsed(group.type)">
+                  <div
+                    v-for="b in group.accounts"
+                    :key="b.account_id"
+                    :class="['account-card', { 'active': selectedAccountId === b.account_id }]"
+                    @click="selectAccountForDetail(b.account_id)"
+                  >
+                    <div class="account-card-header">
+                      <div class="account-avatar">{{ (b.account_name || '').charAt(0) }}</div>
+                      <div class="account-info">
+                        <div class="account-name">{{ b.account_name }}</div>
+                        <div class="account-meta">
+                          <span class="account-type">{{ b.account_type }}</span>
+                        </div>
+                      </div>
+                      <div :class="['account-balance', { 'negative': (b.balance || 0) < 0 }]">
+                        {{ formatCashBalances(b) }}
+                      </div>
+                    </div>
+                    <div class="account-card-detail">
+                      <div v-if="b.account_type === '资产'" class="account-detail-item">
+                        <span class="detail-label">投入</span>
+                        <span class="detail-value">{{ formatCurrency(b.total_invest || 0) }}</span>
+                      </div>
+                      <div class="account-detail-item">
+                        <span class="detail-label">现金余额</span>
+                        <span :class="['detail-value', { 'negative': (b.balance || 0) < 0 }]">
+                          {{ formatCashBalances(b) }}
+                        </span>
+                      </div>
+                      <div v-if="(b.cash_balances || []).length > 1" class="account-detail-item account-detail-currencies">
+                        <span class="detail-label">按币种</span>
+                        <span class="detail-value detail-value-multi">
+                          <template v-for="(cb, i) in b.cash_balances" :key="cb.currency">
+                            {{ i > 0 ? ' · ' : '' }}{{ formatCurrency(cb.balance, cb.currency) }}
+                          </template>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div :class="['account-balance', { 'negative': totalCashBalance < 0 }]">
-                    {{ formatCurrency(totalCashBalance) }}
+                  <!-- 资产账户小计 -->
+                  <div v-if="group.type === '资产' && group.accounts.length > 1" class="account-card account-total-card">
+                    <div class="account-card-header">
+                      <div class="account-avatar total-avatar">
+                        <span class="material-icons">calculate</span>
+                      </div>
+                      <div class="account-info">
+                        <div class="account-name">资产账户合计</div>
+                        <div class="account-meta">
+                          <span class="account-type">小计</span>
+                        </div>
+                      </div>
+                      <div :class="['account-balance', { 'negative': assetTotalCash < 0 }]">
+                        {{ formatCurrency(assetTotalCash) }}
+                      </div>
+                    </div>
                   </div>
+                  </template>
                 </div>
-              </div>
+              </template>
             </div>
           </div>
 
@@ -255,8 +354,42 @@ export default {
                 <p>加载详情中...</p>
               </div>
               <template v-else>
-                <!-- 资产统计 -->
-                <div class="detail-cards-grid">
+                <!-- 现金余额（多币种） -->
+                <div v-if="selectedAccountCash && (selectedAccountCash.cash_balances?.length || selectedAccountCash.balance)" class="detail-section">
+                  <h3 class="detail-section-title">
+                    <span class="material-icons">account_balance_wallet</span>
+                    现金余额
+                  </h3>
+                  <div v-if="(selectedAccountCash.cash_balances || []).length === 0" class="currency-grid">
+                    <div class="currency-card">
+                      <div class="currency-header">
+                        <span class="currency-name">CNY</span>
+                        <span :class="['currency-profit', (selectedAccountCash.balance || 0) >= 0 ? 'positive' : 'negative']">
+                          {{ formatCurrency(selectedAccountCash.balance, 'CNY') }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="currency-grid">
+                    <div v-for="cb in selectedAccountCash.cash_balances" :key="cb.currency" class="currency-card">
+                      <div class="currency-header">
+                        <span class="currency-name">{{ cb.currency }}</span>
+                        <span :class="['currency-profit', (cb.balance || 0) >= 0 ? 'positive' : 'negative']">
+                          {{ formatCurrency(cb.balance, cb.currency) }}
+                        </span>
+                      </div>
+                      <div class="currency-body">
+                        <div class="currency-row">
+                          <span class="currency-label">约合人民币</span>
+                          <span class="currency-value">{{ formatCurrency(cb.balance_cny) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 资产统计（仅资产账户） -->
+                <div v-if="isAssetAccount" class="detail-cards-grid">
                   <div class="detail-card">
                     <div class="detail-card-icon blue">
                       <span class="material-icons">payments</span>
@@ -301,8 +434,8 @@ export default {
                   </div>
                 </div>
 
-                <!-- 按币种统计 -->
-                <div v-if="balanceByCurrency.length > 0" class="detail-section">
+                <!-- 按币种统计（仅资产账户） -->
+                <div v-if="isAssetAccount && balanceByCurrency.length > 0" class="detail-section">
                   <h3 class="detail-section-title">
                     <span class="material-icons">currency_exchange</span>
                     币种分布
@@ -329,8 +462,8 @@ export default {
                   </div>
                 </div>
 
-                <!-- 持仓明细 -->
-                <div class="detail-section">
+                <!-- 持仓明细（仅资产账户） -->
+                <div v-if="isAssetAccount" class="detail-section">
                   <h3 class="detail-section-title">
                     <span class="material-icons">inventory_2</span>
                     持仓明细
@@ -364,8 +497,8 @@ export default {
                   </div>
                 </div>
 
-                <!-- 最近交易 -->
-                <div class="detail-section">
+                <!-- 最近交易（仅资产账户） -->
+                <div v-if="isAssetAccount" class="detail-section">
                   <h3 class="detail-section-title">
                     <span class="material-icons">swap_horiz</span>
                     最近交易

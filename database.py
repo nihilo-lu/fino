@@ -1454,6 +1454,50 @@ class Database:
             "balance": 0,
         }
 
+    def get_account_cash_balance_by_currency(self, account_id: int) -> List[Dict]:
+        """获取账户按币种分组的现金余额（多币种支持）。
+
+        返回形如 [{"currency": "CNY", "balance": 1000.0, "balance_cny": 1000.0}, ...]
+        """
+        cursor = self.conn.cursor()
+        today = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute(
+            """
+            SELECT
+                c.code as currency_code,
+                c.symbol as currency_symbol,
+                COALESCE(SUM(CASE WHEN ft.type = '本金投入' AND fte.side = 'debit' THEN fte.amount ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN ft.type = '本金撤出' AND fte.side = 'credit' THEN fte.amount ELSE 0 END), 0)
+                + COALESCE(SUM(CASE WHEN ft.type = '收入' AND fte.side = 'debit' THEN fte.amount ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN ft.type = '支出' AND fte.side = 'credit' THEN fte.amount ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN ft.type = '内转' AND fte.side = 'credit' THEN fte.amount ELSE 0 END), 0)
+                + COALESCE(SUM(CASE WHEN ft.type = '内转' AND fte.side = 'debit' THEN fte.amount ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN ft.type = '开仓' AND fte.side = 'credit' AND COALESCE(fte.subject_type, 'cash') = 'cash' THEN fte.amount ELSE 0 END), 0)
+                + COALESCE(SUM(CASE WHEN ft.type = '平仓' AND fte.side = 'debit' AND COALESCE(fte.subject_type, 'cash') = 'cash' THEN fte.amount ELSE 0 END), 0)
+                as balance
+            FROM fund_transactions ft
+            JOIN fund_transaction_entries fte ON ft.id = fte.fund_transaction_id
+            JOIN currencies c ON ft.currency_id = c.id
+            WHERE fte.account_id = ?
+            GROUP BY c.code, c.symbol
+            HAVING balance != 0
+        """,
+            (account_id,),
+        )
+        rows = cursor.fetchall()
+        result = []
+        for currency_code, currency_symbol, balance in rows:
+            bal = float(balance)
+            rate = self._get_rate_at_date(currency_code or "CNY", today)
+            balance_cny = bal * (rate if rate else DEFAULT_EXCHANGE_RATES.get(currency_code or "CNY", 1.0))
+            result.append({
+                "currency": currency_code or "CNY",
+                "currency_symbol": currency_symbol or "¥",
+                "balance": bal,
+                "balance_cny": balance_cny,
+            })
+        return result
+
     # ============ 历史价格与历史快照 ============
 
     def _get_missing_price_date_range(

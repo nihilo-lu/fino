@@ -1390,6 +1390,57 @@
     overflow-y: auto;
 }
 
+/* 账户按类型分组 */
+.accounts-list .account-group-block {
+    margin-bottom: 20px;
+}
+.accounts-list .account-group-block:last-child {
+    margin-bottom: 0;
+}
+.accounts-list .account-group-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 20px 8px;
+    margin: 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.accounts-list .account-group-block:first-child .account-group-title {
+    padding-top: 0;
+}
+.accounts-list .account-group-title-clickable {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+.accounts-list .account-group-title-clickable:hover {
+    background: var(--color-bg-secondary, #f1f5f9);
+}
+.accounts-list .group-chevron {
+    font-size: 18px;
+    opacity: 0.7;
+}
+.accounts-list .group-title-text {
+    flex-shrink: 0;
+}
+.accounts-list .group-summary {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary, #94a3b8);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* 账户卡片 */
 .account-card {
     padding: 16px 20px;
