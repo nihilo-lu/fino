@@ -24,10 +24,20 @@ def get_returns_analysis():
         portfolio_stats = database.get_portfolio_stats(ledger_id, account_id)
         realized_pl = database.get_realized_pl(ledger_id, account_id)
 
+        # 净值明细（用于完整净值明细表）
+        nav_details = []
+        df = database.get_return_rate(ledger_id=ledger_id)
+        if not df.empty:
+            drop_cols = ["id", "ledger_id", "created_at", "updated_at"]
+            df = df.drop(columns=[c for c in drop_cols if c in df.columns])
+            df["date"] = df["date"].astype(str)
+            nav_details = df.to_dict(orient="records")
+
         return api_success(data={
             "cumulative_return": return_rate,
             "portfolio_stats": portfolio_stats,
             "realized_pl": realized_pl,
+            "nav_details": nav_details,
         })
     except Exception as e:
         logger.error(f"Get returns analysis error: {e}")

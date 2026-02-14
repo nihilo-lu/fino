@@ -483,7 +483,8 @@ const actions = {
       nav_return: data?.cumulative_return ?? null,
       simple_return: data?.cumulative_return ?? null,
       portfolio_stats: data?.portfolio_stats ?? null,
-      realized_pl: data?.realized_pl ?? { total_cny: 0, details: [] }
+      realized_pl: data?.realized_pl ?? { total_cny: 0, details: [] },
+      nav_details: data?.nav_details ?? []
     }
   },
 
