@@ -1,9 +1,10 @@
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useStore } from '../store/index.js'
 import { formatCurrency } from '../utils/formatters.js'
 
 export default {
   name: 'DashboardView',
+  props: { currentPage: { type: String, default: '' } },
   emits: ['navigate'],
   setup(props, { emit }) {
     const { state, actions } = useStore()
@@ -43,6 +44,8 @@ export default {
     watch(() => state.dashboardRefreshTrigger, loadDashboard)
 
     const drawCharts = () => {
+      // 仅在仪表盘可见时绘制图表，避免 Plotly 在隐藏容器中读到错误尺寸导致图表过大
+      if (props.currentPage !== 'dashboard') return
       if (positions.value.length === 0) return
       const allocationChart = document.getElementById('allocation-chart-target')
       const profitChart = document.getElementById('profit-chart-target')
@@ -59,6 +62,13 @@ export default {
     watch(() => positions.value, () => {
       setTimeout(drawCharts, 100)
     }, { deep: true })
+
+    // 切换到仪表盘时重绘图表，确保容器已显示且有正确尺寸
+    watch(() => props.currentPage, (page) => {
+      if (page === 'dashboard' && positions.value.length > 0) {
+        nextTick(() => setTimeout(drawCharts, 150))
+      }
+    })
 
     return {
       state,

@@ -324,6 +324,7 @@ handleLedgerSelect,
           <div v-else class="content-area">
             <DashboardView
               v-show="currentPage === 'dashboard'"
+              :current-page="currentPage"
               :class="['view', { active: currentPage === 'dashboard' }]"
               @navigate="navigateTo"
             />

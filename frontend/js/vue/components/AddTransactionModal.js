@@ -45,7 +45,9 @@ export default {
       if (v) {
         const ledgerId = state.currentLedgerId || state.ledgers[0]?.id || ''
         const accounts = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : state.accounts
-        modalAccounts.value = accounts
+        const assetAccounts = (accounts || []).filter(a => a.type === '资产')
+        modalAccounts.value = assetAccounts
+        const pickAssetAccount = (id) => (assetAccounts.some(a => a.id === id) ? id : (assetAccounts[0]?.id ?? ''))
         const [catData, currData] = await Promise.all([
           actions.fetchCategories(),
           actions.fetchCurrencies()
@@ -54,7 +56,7 @@ export default {
         currencies.value = currData?.currencies || []
         if (edit?.id) {
           form.value.ledger_id = edit.ledger_id ?? ledgerId
-          form.value.account_id = edit.account_id ?? state.currentAccountId ?? accounts[0]?.id ?? ''
+          form.value.account_id = pickAssetAccount(edit.account_id ?? state.currentAccountId ?? '')
           form.value.date = edit.date || new Date().toISOString().split('T')[0]
           form.value.type = edit.type || ''
           form.value.code = edit.code || ''
@@ -68,7 +70,7 @@ export default {
           form.value.notes = edit.notes ?? ''
         } else {
           form.value.ledger_id = ledgerId
-          form.value.account_id = state.currentAccountId || accounts[0]?.id || ''
+          form.value.account_id = pickAssetAccount(state.currentAccountId)
           form.value.date = new Date().toISOString().split('T')[0]
           form.value.type = ''
           form.value.code = ''
