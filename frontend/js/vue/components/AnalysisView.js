@@ -128,7 +128,7 @@ export default {
     const navSortActive = (key) => navSortKey.value === key
 
     onMounted(load)
-    watch(() => [state.currentLedgerId, state.currentAccountId], load)
+    watch(() => [state.currentLedgerId, state.currentAccountId, state.dashboardRefreshTrigger], load)
 
     return {
       state,

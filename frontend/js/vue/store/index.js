@@ -367,6 +367,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('更新成功', 'success')
+      state.dashboardRefreshTrigger++
       return true
     }
     showToast(data?.error || '更新失败', 'error')
@@ -411,6 +412,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('资金明细添加成功', 'success')
+      state.dashboardRefreshTrigger++
       return true
     }
     showToast(data?.error || '添加失败', 'error')
