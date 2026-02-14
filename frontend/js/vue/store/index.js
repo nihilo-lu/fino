@@ -28,6 +28,21 @@ const state = reactive({
   aiChatUnread: false   // AI 助手有未读消息时在浮动按钮上显示提醒
 })
 
+// 刷新时从 localStorage 同步恢复登录态与账本，首屏直接显示目标页（如交易明细），无中间延迟
+try {
+  const ud = localStorage.getItem('user_data')
+  const lastLedger = localStorage.getItem('last_ledger_id')
+  if (ud && lastLedger) {
+    const u = JSON.parse(ud)
+    if (u && u.username) {
+      state.user = u
+      state.isAuthenticated = true
+      const id = parseInt(lastLedger, 10)
+      if (!isNaN(id)) state.currentLedgerId = id
+    }
+  }
+} catch (e) {}
+
 const isAdmin = computed(() => (state.user?.roles || []).includes('admin'))
 
 function setToast(fn) {
@@ -182,6 +197,8 @@ const actions = {
       state.currentLedgerId = id
       return true
     }
+    state.currentLedgerId = null
+    state.accounts = []
     return false
   },
 

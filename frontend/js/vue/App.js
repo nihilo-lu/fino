@@ -205,20 +205,22 @@ const handleCreateLedger = async ({ name, description }) => {
         currentPage.value = pageId
       })
       const isAuth = await actions.checkAuth()
-      if (isAuth) {
-        await actions.fetchLedgers()
-        const restored = actions.tryRestoreLastLedger()
-        if (restored) {
-          await actions.fetchAccounts()
-        }
-        try {
-          await actions.fetchPluginCenterSetting()
-          await actions.fetchCloudreveConfig()
-          await actions.fetchCloudreveStatus()
-          if (state.pluginCenterEnabled) await actions.fetchInstalledPlugins()
-        } catch (e) {
-          console.warn('Auth fetch failed:', e)
-        }
+      if (!isAuth) {
+        await actions.logout()
+        return
+      }
+      await actions.fetchLedgers()
+      actions.tryRestoreLastLedger()
+      if (state.currentLedgerId) {
+        await actions.fetchAccounts()
+      }
+      try {
+        await actions.fetchPluginCenterSetting()
+        await actions.fetchCloudreveConfig()
+        await actions.fetchCloudreveStatus()
+        if (state.pluginCenterEnabled) await actions.fetchInstalledPlugins()
+      } catch (e) {
+        console.warn('Auth fetch failed:', e)
       }
       if (state.isAuthenticated && state.currentLedgerId) {
         currentPage.value = getPageFromPath()
