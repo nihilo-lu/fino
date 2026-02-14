@@ -1228,6 +1228,104 @@ const actions = {
     }
 
     Plotly.react(container, data, layout, config)
+  },
+
+  /**
+   * 收益率走势图：按每日净值数据绘制单位净值与累计收益率曲线
+   * @param {HTMLElement} container - 图表挂载的 DOM 节点
+   * @param {Array<{date: string, 单位净值?: number, 累计收益率?: number}>} navDetails - 净值明细（按 date 升序使用）
+   */
+  drawReturnTrendChart(container, navDetails) {
+    if (!container) return
+
+    const Plotly = this._getPlotly()
+    if (!Plotly) {
+      container.innerHTML = '<div class="empty-state"><span class="material-icons">show_chart</span><p>Plotly 未加载，无法渲染图表</p></div>'
+      return
+    }
+
+    const rows = (navDetails || []).slice().filter((r) => r && r.date != null)
+    if (rows.length === 0) {
+      container.innerHTML = '<div class="empty-state"><span class="material-icons">show_chart</span><p>暂无净值数据</p></div>'
+      return
+    }
+
+    rows.sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    const dates = rows.map((r) => r.date)
+    const navValues = rows.map((r) => {
+      const v = r['单位净值']
+      return v != null && v !== '' ? Number(v) : null
+    })
+    const cumReturnValues = rows.map((r) => {
+      const v = r['累计收益率']
+      if (v == null || v === '') return null
+      const n = Number(v)
+      return isNaN(n) ? null : n * 100
+    })
+
+    const data = [
+      {
+        type: 'scatter',
+        mode: 'lines',
+        name: '单位净值',
+        x: dates,
+        y: navValues,
+        line: { color: '#3b82f6', width: 2 },
+        yaxis: 'y',
+        hovertemplate: '%{x}<br>单位净值: %{y:,.4f}<extra></extra>'
+      },
+      {
+        type: 'scatter',
+        mode: 'lines',
+        name: '累计收益率 (%)',
+        x: dates,
+        y: cumReturnValues,
+        line: { color: '#10b981', width: 2 },
+        yaxis: 'y2',
+        hovertemplate: '%{x}<br>累计收益率: %{y:.2f}%<extra></extra>'
+      }
+    ]
+
+    const layout = {
+      margin: { l: 55, r: 55, t: 16, b: 50 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { family: 'Inter, sans-serif', color: '#1e293b' },
+      showlegend: true,
+      legend: { orientation: 'h', x: 0, y: 1.08, xanchor: 'left' },
+      xaxis: {
+        title: { text: '日期' },
+        type: 'category',
+        tickangle: -45,
+        automargin: true,
+        gridcolor: 'rgba(226,232,240,0.6)'
+      },
+      yaxis: {
+        title: { text: '单位净值' },
+        side: 'left',
+        zeroline: true,
+        zerolinecolor: '#e2e8f0',
+        gridcolor: 'rgba(226,232,240,0.6)',
+        automargin: true
+      },
+      yaxis2: {
+        title: { text: '累计收益率 (%)' },
+        side: 'right',
+        overlaying: 'y',
+        zeroline: false,
+        gridcolor: 'rgba(226,232,240,0.3)',
+        automargin: true,
+        tickformat: '.2f'
+      }
+    }
+
+    const config = {
+      responsive: true,
+      displayModeBar: false,
+      displaylogo: false
+    }
+
+    Plotly.react(container, data, layout, config)
   }
 }
 

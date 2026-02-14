@@ -1,10 +1,11 @@
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useStore } from '../store/index.js'
 import { formatCurrency } from '../utils/formatters.js'
 
 export default {
   name: 'AnalysisView',
-  setup() {
+  props: { currentPage: { type: String, default: '' } },
+  setup(props) {
     const { state, actions } = useStore()
     const navReturn = ref('0.00')
     const simpleReturn = ref('0.00')
@@ -127,8 +128,25 @@ export default {
 
     const navSortActive = (key) => navSortKey.value === key
 
-    onMounted(load)
-    watch(() => [state.currentLedgerId, state.currentAccountId, state.dashboardRefreshTrigger], load)
+    const drawReturnChart = () => {
+      if (props.currentPage !== 'analysis') return
+      if (!hasNavDetails.value || navDetails.value.length === 0) return
+      const el = document.getElementById('return-trend-chart-target')
+      if (!el) return
+      actions.drawReturnTrendChart(el, navDetails.value)
+    }
+
+    onMounted(() => {
+      load().then(() => nextTick(() => setTimeout(drawReturnChart, 150)))
+    })
+    watch(() => [state.currentLedgerId, state.currentAccountId, state.dashboardRefreshTrigger], () => {
+      load().then(() => nextTick(() => setTimeout(drawReturnChart, 150)))
+    })
+    watch(
+      () => [props.currentPage, navDetails.value],
+      () => nextTick(() => setTimeout(drawReturnChart, 150)),
+      { deep: true }
+    )
 
     return {
       state,
@@ -185,9 +203,10 @@ export default {
         <div class="card-header"><h3>收益率走势</h3></div>
         <div class="card-body">
           <div class="chart-container">
-            <div class="empty-state">
+            <div v-if="hasNavDetails" id="return-trend-chart-target" class="chart-target"></div>
+            <div v-else class="empty-state">
               <span class="material-icons">show_chart</span>
-              <p>暂无收益数据</p>
+              <p>暂无净值数据，请先有资金或交易记录并生成收益率</p>
             </div>
           </div>
         </div>

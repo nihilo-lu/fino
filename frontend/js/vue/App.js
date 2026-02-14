@@ -352,6 +352,7 @@ handleLedgerSelect,
             <AnalysisView
               v-show="currentPage === 'analysis'"
               :class="['view', { active: currentPage === 'analysis' }]"
+              :current-page="currentPage"
             />
             <CloudStorageView
               v-show="currentPage === 'cloud-storage'"
