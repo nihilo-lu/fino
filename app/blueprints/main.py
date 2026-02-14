@@ -447,6 +447,7 @@ def index():
 # SPA 子页面路由：刷新时返回 index.html，由前端根据 URL 渲染对应页面
 @main_bp.route("/dashboard")
 @main_bp.route("/positions")
+@main_bp.route("/accounts")
 @main_bp.route("/transactions")
 @main_bp.route("/funds")
 @main_bp.route("/analysis")

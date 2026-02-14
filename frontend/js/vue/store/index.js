@@ -219,6 +219,13 @@ const actions = {
     return data?.accounts || []
   },
 
+  async fetchAccountBalances(ledgerId) {
+    if (!ledgerId) return []
+    const response = await apiFetch(`${API_BASE}/accounts/balances?ledger_id=${ledgerId}`)
+    const data = await parseJson(response)
+    return data?.balances || []
+  },
+
   setCurrentLedger(ledgerId) {
     const id = ledgerId ? parseInt(ledgerId) : null
     state.currentLedgerId = id
@@ -237,19 +244,25 @@ const actions = {
     state.accounts = []
   },
 
-  async fetchPortfolioStats() {
+  async fetchPortfolioStats(accountId = undefined) {
     if (!state.currentLedgerId) return null
     const params = { ledger_id: state.currentLedgerId }
-    if (state.currentAccountId) params.account_id = state.currentAccountId
+    if (accountId === null) { /* 显式全部账户，不传 account_id */ } else {
+      const aid = accountId !== undefined ? accountId : state.currentAccountId
+      if (aid != null) params.account_id = aid
+    }
     const response = await apiFetch(`${API_BASE}/portfolio/stats?${new URLSearchParams(params)}`)
     const data = await parseJson(response)
     return data
   },
 
-  async fetchPositions() {
+  async fetchPositions(accountId = undefined) {
     if (!state.currentLedgerId) return null
     const params = { ledger_id: state.currentLedgerId }
-    if (state.currentAccountId) params.account_id = state.currentAccountId
+    if (accountId === null) { /* 显式全部账户 */ } else {
+      const aid = accountId !== undefined ? accountId : state.currentAccountId
+      if (aid != null) params.account_id = aid
+    }
     const response = await apiFetch(`${API_BASE}/positions?${new URLSearchParams(params)}`)
     return parseJson(response)
   },
@@ -265,7 +278,10 @@ const actions = {
   async fetchTransactions(opts = {}) {
     if (!state.currentLedgerId) return null
     const params = { ledger_id: state.currentLedgerId, limit: opts.limit || 20, offset: opts.offset || 0 }
-    if (state.currentAccountId) params.account_id = state.currentAccountId
+    if (opts.account_id === null) { /* 全部账户 */ } else {
+      const aid = opts.account_id !== undefined ? opts.account_id : state.currentAccountId
+      if (aid != null) params.account_id = aid
+    }
     if (opts.type) params.type = opts.type
     if (opts.start_date) params.start_date = opts.start_date
     if (opts.end_date) params.end_date = opts.end_date
@@ -327,8 +343,11 @@ const actions = {
 
   async fetchFundTransactions(opts = {}) {
     if (!state.currentLedgerId) return null
-    const params = { ledger_id: state.currentLedgerId, limit: 50 }
-    if (state.currentAccountId) params.account_id = state.currentAccountId
+    const params = { ledger_id: state.currentLedgerId, limit: opts.limit ?? 50, offset: opts.offset ?? 0 }
+    if (opts.account_id === null) { /* 全部账户 */ } else {
+      const aid = opts.account_id !== undefined ? opts.account_id : state.currentAccountId
+      if (aid != null) params.account_id = aid
+    }
     if (opts.type) params.type = opts.type
     if (opts.start_date) params.start_date = opts.start_date
     if (opts.end_date) params.end_date = opts.end_date

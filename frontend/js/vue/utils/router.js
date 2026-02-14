@@ -6,6 +6,7 @@
 const PATH_TO_PAGE = {
   '/': 'dashboard',
   '/dashboard': 'dashboard',
+  '/accounts': 'accounts',
   '/transactions': 'transactions',
   '/funds': 'funds',
   '/analysis': 'analysis',
@@ -17,6 +18,7 @@ const PATH_TO_PAGE = {
 
 const PAGE_TO_PATH = {
   dashboard: '/dashboard',
+  accounts: '/accounts',
   transactions: '/transactions',
   funds: '/funds',
   analysis: '/analysis',

@@ -11,6 +11,7 @@ import Toast from './components/Toast.js'
 const Sidebar = defineAsyncComponent(() => import('./components/Sidebar.js'))
 const Header = defineAsyncComponent(() => import('./components/Header.js'))
 const DashboardView = defineAsyncComponent(() => import('./components/DashboardView.js'))
+const AccountsView = defineAsyncComponent(() => import('./components/AccountsView.js'))
 const TransactionsView = defineAsyncComponent(() => import('./components/TransactionsView.js'))
 const FundsView = defineAsyncComponent(() => import('./components/FundsView.js'))
 const AnalysisView = defineAsyncComponent(() => import('./components/AnalysisView.js'))
@@ -25,6 +26,7 @@ const AiChatPage = defineAsyncComponent(() => import('./components/AiChatPage.js
 
 const PAGE_TITLES = {
   dashboard: '仪表盘',
+  accounts: '账户管理',
   transactions: '交易明细',
   funds: '资金明细',
   analysis: '收益分析',
@@ -36,6 +38,7 @@ const PAGE_TITLES = {
 
 const NAV_ITEMS_BASE = [
   { id: 'dashboard', label: '仪表盘', icon: 'dashboard' },
+  { id: 'accounts', label: '账户管理', icon: 'account_balance' },
   { id: 'transactions', label: '交易明细', icon: 'receipt_long' },
   { id: 'funds', label: '资金明细', icon: 'payments' },
   { id: 'analysis', label: '收益分析', icon: 'analytics' },
@@ -52,6 +55,7 @@ components: {
     Sidebar,
     Header,
     DashboardView,
+    AccountsView,
     TransactionsView,
     FundsView,
     AnalysisView,
@@ -326,6 +330,11 @@ handleLedgerSelect,
               v-show="currentPage === 'dashboard'"
               :current-page="currentPage"
               :class="['view', { active: currentPage === 'dashboard' }]"
+              @navigate="navigateTo"
+            />
+            <AccountsView
+              v-show="currentPage === 'accounts'"
+              :class="['view', { active: currentPage === 'accounts' }]"
               @navigate="navigateTo"
             />
             <TransactionsView
