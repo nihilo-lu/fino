@@ -503,6 +503,23 @@ class TransactionCRUD:
                     transaction["amount"], currency_code
                 )
 
+            # 编辑交易时同步更新关联的资金明细，避免平仓改开仓（或反之）后现金余额未更新
+            cursor.execute(
+                "SELECT id FROM fund_transactions WHERE transaction_id = ?",
+                (transaction_id,),
+            )
+            old_fund_rows = cursor.fetchall()
+            for (ft_id,) in old_fund_rows:
+                cursor.execute(
+                    "DELETE FROM fund_transaction_entries WHERE fund_transaction_id = ?",
+                    (ft_id,),
+                )
+            if old_fund_rows:
+                cursor.execute(
+                    "DELETE FROM fund_transactions WHERE transaction_id = ?",
+                    (transaction_id,),
+                )
+
             cursor.execute(
                 """
                 UPDATE transactions
@@ -529,6 +546,81 @@ class TransactionCRUD:
                     transaction_id,
                 ),
             )
+
+            # 若更新后为开仓/平仓，重新写入资金明细，使账户现金余额与交易类型一致
+            trans_type = transaction.get("type")
+            if trans_type in ("开仓", "平仓"):
+                cursor.execute(
+                    """
+                    INSERT INTO fund_transactions (
+                        ledger_id, date, type, currency_id, notes, transaction_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        transaction["ledger_id"],
+                        transaction["date"],
+                        trans_type,
+                        currency_id,
+                        transaction.get("notes"),
+                        transaction_id,
+                    ),
+                )
+                fund_transaction_id = cursor.lastrowid
+                account_id = transaction["account_id"]
+                if trans_type == "开仓":
+                    entries = [
+                        {
+                            "account_id": account_id,
+                            "side": "debit",
+                            "amount": transaction["amount"],
+                            "subject_type": "position",
+                        },
+                        {
+                            "account_id": account_id,
+                            "side": "credit",
+                            "amount": transaction["amount"],
+                            "subject_type": "cash",
+                        },
+                    ]
+                else:
+                    entries = [
+                        {
+                            "account_id": account_id,
+                            "side": "debit",
+                            "amount": transaction["amount"],
+                            "subject_type": "cash",
+                        },
+                        {
+                            "account_id": account_id,
+                            "side": "credit",
+                            "amount": transaction["amount"],
+                            "subject_type": "position",
+                        },
+                    ]
+                for entry in entries:
+                    amt = entry["amount"]
+                    if trans_date:
+                        amt_cny = analytics.convert_to_cny_at_date(
+                            amt, currency_code, trans_date
+                        )
+                    else:
+                        amt_cny = analytics.convert_to_cny(amt, currency_code)
+                    cursor.execute(
+                        """
+                        INSERT INTO fund_transaction_entries
+                        (fund_transaction_id, account_id, side, amount, amount_cny, subject_type)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            fund_transaction_id,
+                            entry["account_id"],
+                            entry["side"],
+                            amt,
+                            amt_cny,
+                            entry.get("subject_type", "cash"),
+                        ),
+                    )
 
             self.conn.commit()
 
