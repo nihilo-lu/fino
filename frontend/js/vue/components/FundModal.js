@@ -117,7 +117,7 @@ export default {
         }
         await loadRates()
       }
-    })
+    }, { immediate: true })
     watch(() => form.value.date, () => { if (props.show) loadRates() })
 
     function addDebitRow() {
