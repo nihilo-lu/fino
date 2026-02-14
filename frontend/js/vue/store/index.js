@@ -378,6 +378,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('删除成功', 'success')
+      state.dashboardRefreshTrigger++
       if (onSuccess) onSuccess()
     } else {
       showToast(data?.error || '删除失败', 'error')
@@ -394,6 +395,7 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('删除成功', 'success')
+      state.dashboardRefreshTrigger++
       if (onSuccess) onSuccess()
     } else {
       showToast(data?.error || '删除失败', 'error')

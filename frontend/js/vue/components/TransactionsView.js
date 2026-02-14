@@ -35,6 +35,7 @@ export default {
 
     onMounted(load)
     watch(() => [state.currentLedgerId, state.currentAccountId, page, typeFilter, startDate, endDate], load, { deep: true })
+    watch(() => state.dashboardRefreshTrigger, load)
 
     const totalPages = () => Math.ceil(total.value / perPage) || 1
     const goToPage = (p) => { page.value = p }
