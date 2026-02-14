@@ -1,4 +1,4 @@
-import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useStore } from '../store/index.js'
 import { formatCurrency } from '../utils/formatters.js'
 
@@ -16,6 +16,65 @@ export default {
     const navSortOrder = ref('desc')
     const navPage = ref(1)
     const navPageSize = 20
+
+    // 图表设置 - 从 localStorage 加载保存的设置
+    const chartSettingsOpen = ref(false)
+    const defaultChartSettings = {
+      showDays: 0, // 0 表示全部显示
+      showZeroLine: true,
+      showGrid: true,
+      showLegend: true,
+      showXAxis: true,
+      showYAxis: true,
+      dateFormat: 'auto', // auto, YYYY-MM-DD, MM/DD, MM-DD
+      smoothCurve: false,
+      showAnnotations: false,
+      annotationInterval: 0, // 0 表示只显示首尾，>0 表示每隔N个显示一个
+      chartHeight: 400
+    }
+
+    // 标注间隔选项
+    const annotationIntervalOptions = [
+      { value: 0, label: '仅首尾' },
+      { value: 3, label: '每3天' },
+      { value: 7, label: '每周' },
+      { value: 14, label: '每两周' },
+      { value: 30, label: '每月' }
+    ]
+    const dateFormatOptions = [
+      { value: 'auto', label: '自动' },
+      { value: 'YYYY-MM-DD', label: '2024-01-01' },
+      { value: 'MM/DD', label: '01/01' },
+      { value: 'MM-DD', label: '01-01' },
+      { value: 'MMM DD', label: 'Jan 01' }
+    ]
+
+    // 获取 localStorage key（包含账套 ID 以区分不同账套）
+    const getChartSettingsKey = () => `chart_settings_${state.currentLedgerId || 'default'}`
+
+    // 从 localStorage 加载设置
+    const loadChartSettings = () => {
+      try {
+        const saved = localStorage.getItem(getChartSettingsKey())
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          chartSettings.value = { ...defaultChartSettings, ...parsed }
+        }
+      } catch (e) {
+        console.error('Failed to load chart settings:', e)
+      }
+    }
+
+    // 保存设置到 localStorage
+    const saveChartSettingsToStorage = () => {
+      try {
+        localStorage.setItem(getChartSettingsKey(), JSON.stringify(chartSettings.value))
+      } catch (e) {
+        console.error('Failed to save chart settings:', e)
+      }
+    }
+
+    const chartSettings = ref({ ...defaultChartSettings })
 
     const load = async () => {
       if (!state.currentLedgerId) return
@@ -128,19 +187,96 @@ export default {
 
     const navSortActive = (key) => navSortKey.value === key
 
+    // 图表自适应容器大小
+    let chartResizeObserver = null
+
     const drawReturnChart = () => {
       if (props.currentPage !== 'analysis') return
       if (!hasNavDetails.value || navDetails.value.length === 0) return
       const el = document.getElementById('return-trend-chart-target')
       if (!el) return
-      actions.drawReturnTrendChart(el, navDetails.value)
+      actions.drawReturnTrendChart(el, navDetails.value, chartSettings.value)
+    }
+
+    // 设置图表 ResizeObserver
+    const setupChartResizeObserver = () => {
+      const el = document.getElementById('return-trend-chart-target')
+      if (!el) return
+      if (chartResizeObserver) {
+        chartResizeObserver.disconnect()
+      }
+      chartResizeObserver = new ResizeObserver(() => {
+        const chartEl = document.getElementById('return-trend-chart-target')
+        if (chartEl) {
+          actions.resizeChart(chartEl)
+        }
+      })
+      chartResizeObserver.observe(el)
+    }
+
+    // 监听侧边栏状态变化
+    const sidebarCollapsed = ref(false)
+    let sidebarCheckInterval = null
+    let resizeTimeout = null
+    const checkSidebarState = () => {
+      const sidebar = document.querySelector('.sidebar')
+      if (sidebar) {
+        const isCollapsed = sidebar.classList.contains('collapsed')
+        if (sidebarCollapsed.value !== isCollapsed) {
+          sidebarCollapsed.value = isCollapsed
+          // 侧边栏状态变化时，等待动画完成后调整图表大小
+          if (resizeTimeout) clearTimeout(resizeTimeout)
+          resizeTimeout = setTimeout(() => {
+            const el = document.getElementById('return-trend-chart-target')
+            if (el) {
+              actions.resizeChart(el)
+            }
+          }, 350) // 等待 CSS transition 完成
+        }
+      }
+    }
+
+    const saveChartSettings = () => {
+      saveChartSettingsToStorage()
+      chartSettingsOpen.value = false
+      nextTick(() => {
+        drawReturnChart()
+      })
+    }
+
+    // 加载图表设置并绘制图表
+    const loadChartAndDraw = async () => {
+      loadChartSettings()
+      await load()
+      nextTick(() => {
+        setTimeout(() => {
+          drawReturnChart()
+          checkSidebarState()
+          setupChartResizeObserver()
+          // 启动侧边栏状态监听
+          if (sidebarCheckInterval) clearInterval(sidebarCheckInterval)
+          sidebarCheckInterval = setInterval(checkSidebarState, 500)
+        }, 150)
+      })
     }
 
     onMounted(() => {
-      load().then(() => nextTick(() => setTimeout(drawReturnChart, 150)))
+      loadChartAndDraw()
+    })
+
+    onUnmounted(() => {
+      if (chartResizeObserver) {
+        chartResizeObserver.disconnect()
+      }
+      if (sidebarCheckInterval) {
+        clearInterval(sidebarCheckInterval)
+      }
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
     })
     watch(() => [state.currentLedgerId, state.currentAccountId, state.dashboardRefreshTrigger], () => {
-      load().then(() => nextTick(() => setTimeout(drawReturnChart, 150)))
+      loadChartAndDraw()
     })
     watch(
       () => [props.currentPage, navDetails.value],
@@ -174,7 +310,13 @@ export default {
       hasDetails,
       hasNavDetails,
       formatCurrency,
-      formatPercent
+      formatPercent,
+      chartSettingsOpen,
+      chartSettings,
+      dateFormatOptions,
+      annotationIntervalOptions,
+      drawReturnChart,
+      saveChartSettings
     }
   },
   template: `
@@ -200,7 +342,12 @@ export default {
         </div>
       </div>
       <div class="chart-card">
-        <div class="card-header"><h3>收益率走势</h3></div>
+        <div class="card-header">
+          <h3>收益率走势</h3>
+          <button type="button" class="chart-settings-btn" @click="chartSettingsOpen = true" title="图表设置">
+            <span class="material-icons">settings</span>
+          </button>
+        </div>
         <div class="card-body">
           <div class="chart-container">
             <div v-if="hasNavDetails" id="return-trend-chart-target" class="chart-target"></div>
@@ -315,6 +462,94 @@ export default {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 图表设置弹窗 -->
+      <div :class="['modal', { active: chartSettingsOpen }]" @click.self="chartSettingsOpen = false">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>图表设置</h3>
+            <button type="button" class="modal-close" @click="chartSettingsOpen = false">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>显示天数</label>
+              <input type="number" v-model="chartSettings.showDays" min="0" placeholder="0 表示显示全部" />
+              <small>0 表示显示全部数据</small>
+            </div>
+            <div class="form-group">
+              <label>日期格式</label>
+              <select v-model="chartSettings.dateFormat">
+                <option v-for="opt in dateFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>曲线平滑</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.smoothCurve" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>显示图例</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showLegend" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>显示文字标注</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showAnnotations" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group" v-if="chartSettings.showAnnotations">
+              <label>标注间隔</label>
+              <select v-model="chartSettings.annotationInterval">
+                <option v-for="opt in annotationIntervalOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>显示零线</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showZeroLine" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>显示网格线</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showGrid" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>显示横轴</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showXAxis" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>显示纵轴</label>
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="chartSettings.showYAxis" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>图表高度</label>
+              <input type="number" v-model="chartSettings.chartHeight" min="200" max="800" step="50" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" @click="chartSettingsOpen = false">取消</button>
+            <button type="button" class="btn btn-primary" @click="saveChartSettings">应用</button>
           </div>
         </div>
       </div>

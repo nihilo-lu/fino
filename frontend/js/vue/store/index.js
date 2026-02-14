@@ -1231,11 +1231,25 @@ const actions = {
   },
 
   /**
-   * 收益率走势图：按每日净值数据绘制单位净值与累计收益率曲线
+   * 收益率走势图：绘制累计收益率曲线
    * @param {HTMLElement} container - 图表挂载的 DOM 节点
-   * @param {Array<{date: string, 单位净值?: number, 累计收益率?: number}>} navDetails - 净值明细（按 date 升序使用）
+   * @param {Array<{date: string, 累计收益率?: number}>} navDetails - 净值明细（按 date 升序使用）
+   * @param {Object} settings - 图表设置
+   * @param {number} settings.showDays - 显示天数（0 表示全部）
+   * @param {boolean} settings.showZeroLine - 是否显示零线
+   * @param {boolean} settings.showGrid - 是否显示网格线
+   * @param {boolean} settings.showLegend - 是否显示图例
+   * @param {boolean} settings.showXAxis - 是否显示横轴
+   * @param {boolean} settings.showYAxis - 是否显示纵轴
+   * @param {string} settings.dateFormat - 日期格式 (auto, YYYY-MM-DD, MM/DD, MM-DD, MMM DD)
+   * @param {boolean} settings.smoothCurve - 是否曲线平滑
+   * @param {boolean} settings.showAnnotations - 是否显示文字标注
+   * @param {number} settings.annotationInterval - 标注间隔（0=仅首尾，>0=每隔N个显示）
+   * @param {number} settings.chartHeight - 图表高度
    */
-  drawReturnTrendChart(container, navDetails) {
+  drawReturnTrendChart(container, navDetails, settings = {}) {
+    console.log('drawReturnTrendChart called with settings:', settings)
+
     if (!container) return
 
     const Plotly = this._getPlotly()
@@ -1244,18 +1258,44 @@ const actions = {
       return
     }
 
-    const rows = (navDetails || []).slice().filter((r) => r && r.date != null)
+    let rows = (navDetails || []).slice().filter((r) => r && r.date != null)
     if (rows.length === 0) {
       container.innerHTML = '<div class="empty-state"><span class="material-icons">show_chart</span><p>暂无净值数据</p></div>'
       return
     }
 
     rows.sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    const dates = rows.map((r) => r.date)
-    const navValues = rows.map((r) => {
-      const v = r['单位净值']
-      return v != null && v !== '' ? Number(v) : null
-    })
+
+    // 应用显示天数设置
+    if (settings.showDays && settings.showDays > 0) {
+      console.log('Applying showDays:', settings.showDays, 'original rows:', rows.length)
+      rows = rows.slice(-settings.showDays)
+      console.log('After slice, rows:', rows.length)
+    }
+
+    // 日期格式化函数
+    const formatDate = (dateStr) => {
+      if (!dateStr) return ''
+      const date = new Date(dateStr)
+      if (isNaN(date.getTime())) return dateStr
+
+      const format = settings.dateFormat || 'auto'
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const monthName = monthNames[date.getMonth()]
+
+      switch (format) {
+        case 'YYYY-MM-DD': return `${year}-${month}-${day}`
+        case 'MM/DD': return `${month}/${day}`
+        case 'MM-DD': return `${month}-${day}`
+        case 'MMM DD': return `${monthName} ${day}`
+        default: return dateStr // auto: keep original
+      }
+    }
+
+    const dates = rows.map((r) => formatDate(r.date))
     const cumReturnValues = rows.map((r) => {
       const v = r['累计收益率']
       if (v == null || v === '') return null
@@ -1263,61 +1303,104 @@ const actions = {
       return isNaN(n) ? null : n * 100
     })
 
+    // 曲线平滑设置
+    const lineShape = settings.smoothCurve ? 'spline' : 'linear'
+
     const data = [
-      {
-        type: 'scatter',
-        mode: 'lines',
-        name: '单位净值',
-        x: dates,
-        y: navValues,
-        line: { color: '#3b82f6', width: 2 },
-        yaxis: 'y',
-        hovertemplate: '%{x}<br>单位净值: %{y:,.4f}<extra></extra>'
-      },
       {
         type: 'scatter',
         mode: 'lines',
         name: '累计收益率 (%)',
         x: dates,
         y: cumReturnValues,
-        line: { color: '#10b981', width: 2 },
-        yaxis: 'y2',
+        line: { color: '#10b981', width: 2, shape: lineShape },
+        yaxis: 'y',
         hovertemplate: '%{x}<br>累计收益率: %{y:.2f}%<extra></extra>'
       }
     ]
 
+    const gridColor = settings.showGrid !== false ? 'rgba(226,232,240,0.6)' : 'transparent'
+    console.log('gridColor:', gridColor, 'showGrid:', settings.showGrid)
+    const chartHeight = settings.chartHeight || 400
+    console.log('chartHeight:', chartHeight)
+
+    // 文字标注（支持间隔显示）
+    const annotations = []
+    if (settings.showAnnotations && cumReturnValues.length > 0) {
+      const interval = settings.annotationInterval || 0
+      const createAnnotation = (idx) => {
+        if (cumReturnValues[idx] == null) return null
+        return {
+          x: dates[idx],
+          y: cumReturnValues[idx],
+          text: cumReturnValues[idx].toFixed(2) + '%',
+          showarrow: true,
+          arrowhead: 2,
+          ax: 0,
+          ay: -20,
+          font: { color: '#10b981', size: 10 },
+          bgcolor: 'rgba(255,255,255,0.8)',
+          bordercolor: '#10b981',
+          borderwidth: 1,
+          borderpad: 2
+        }
+      }
+
+      if (interval === 0) {
+        // 仅显示首尾
+        const first = createAnnotation(0)
+        if (first) annotations.push(first)
+        const lastIdx = cumReturnValues.length - 1
+        const last = createAnnotation(lastIdx)
+        if (last) annotations.push(last)
+      } else {
+        // 按间隔显示
+        for (let i = 0; i < cumReturnValues.length; i += interval + 1) {
+          const ann = createAnnotation(i)
+          if (ann) annotations.push(ann)
+        }
+        // 确保终点也被标注
+        const lastIdx = cumReturnValues.length - 1
+        if (lastIdx % (interval + 1) !== 0) {
+          const last = createAnnotation(lastIdx)
+          if (last) annotations.push(last)
+        }
+      }
+    }
+
     const layout = {
+      height: chartHeight,
       margin: { l: 55, r: 55, t: 16, b: 50 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       font: { family: 'Inter, sans-serif', color: '#1e293b' },
-      showlegend: true,
+      showlegend: settings.showLegend !== false,
       legend: { orientation: 'h', x: 0, y: 1.08, xanchor: 'left' },
       xaxis: {
-        title: { text: '日期' },
+        title: settings.showXAxis !== false ? { text: '日期' } : undefined,
         type: 'category',
         tickangle: -45,
         automargin: true,
-        gridcolor: 'rgba(226,232,240,0.6)'
+        gridcolor: gridColor,
+        showline: settings.showXAxis !== false,
+        zeroline: false,
+        showticklabels: settings.showXAxis !== false
       },
       yaxis: {
-        title: { text: '单位净值' },
+        title: settings.showYAxis !== false ? { text: '累计收益率 (%)' } : undefined,
         side: 'left',
-        zeroline: true,
+        zeroline: settings.showZeroLine !== false,
         zerolinecolor: '#e2e8f0',
-        gridcolor: 'rgba(226,232,240,0.6)',
-        automargin: true
-      },
-      yaxis2: {
-        title: { text: '累计收益率 (%)' },
-        side: 'right',
-        overlaying: 'y',
-        zeroline: false,
-        gridcolor: 'rgba(226,232,240,0.3)',
+        gridcolor: gridColor,
         automargin: true,
-        tickformat: '.2f'
-      }
+        tickformat: '.2f',
+        showline: settings.showYAxis !== false,
+        showticklabels: settings.showYAxis !== false
+      },
+      annotations: annotations
     }
+
+    console.log('yaxis zeroline:', settings.showZeroLine !== false, 'showZeroLine:', settings.showZeroLine)
 
     const config = {
       responsive: true,
@@ -1326,6 +1409,14 @@ const actions = {
     }
 
     Plotly.react(container, data, layout, config)
+  },
+
+  // 调整图表大小（用于侧边栏收起时触发）
+  resizeChart(container) {
+    if (!container) return
+    const Plotly = this._getPlotly()
+    if (!Plotly) return
+    Plotly.Plots.resize(container)
   }
 }
 
