@@ -849,13 +849,18 @@ class Database:
             logging.error(f"更新历史快照失败: {e}")
 
     def add_transaction(self, transaction: Dict) -> bool:
-        """添加交易记录（仅保存，不执行耗时计算）"""
+        """添加交易记录，成功后从交易日期到昨天更新历史快照与收益率（当日净资产会更新）"""
         result = self.transaction_crud.add_transaction(transaction, self.analytics)
         if result:
             clear_related_cache(
                 ledger_id=transaction.get("ledger_id"),
                 account_id=transaction.get("account_id"),
             )
+            trans_date = transaction.get("date")
+            if trans_date:
+                self._update_history_for_date(
+                    trans_date, ledger_id=transaction.get("ledger_id")
+                )
         return result
 
     def update_history_after_transaction(
@@ -1355,7 +1360,7 @@ class Database:
         )
 
     def add_transaction_with_fund(self, transaction: Dict) -> bool:
-        """添加交易记录并同时记录资金明细（仅保存，不执行耗时计算）"""
+        """添加交易记录并同时记录资金明细，成功后从交易日期到昨天更新历史快照与收益率（当日净资产会更新）"""
         result = self.transaction_crud.add_transaction_with_fund(
             transaction, self.analytics
         )
@@ -1364,6 +1369,11 @@ class Database:
                 ledger_id=transaction.get("ledger_id"),
                 account_id=transaction.get("account_id"),
             )
+            trans_date = transaction.get("date")
+            if trans_date:
+                self._update_history_for_date(
+                    trans_date, ledger_id=transaction.get("ledger_id")
+                )
         return result
 
     def update_history_after_transaction_with_fund(
