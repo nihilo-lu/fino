@@ -1236,15 +1236,20 @@ const actions = {
    * @param {Array<{date: string, 累计收益率?: number}>} navDetails - 净值明细（按 date 升序使用）
    * @param {Object} settings - 图表设置
    * @param {number} settings.showDays - 显示天数（0 表示全部）
-   * @param {boolean} settings.showZeroLine - 是否显示零线
-   * @param {boolean} settings.showGrid - 是否显示网格线
-   * @param {boolean} settings.showLegend - 是否显示图例
    * @param {boolean} settings.showXAxis - 是否显示横轴
+   * @param {boolean} settings.showXAxisTitle - 是否显示横轴名称
    * @param {boolean} settings.showYAxis - 是否显示纵轴
+   * @param {boolean} settings.showYAxisTitle - 是否显示纵轴名称
    * @param {string} settings.dateFormat - 日期格式 (auto, YYYY-MM-DD, MM/DD, MM-DD, MMM DD)
+   * @param {boolean} settings.showGrid - 是否显示网格线
+   * @param {boolean} settings.showZeroLine - 是否显示零线
+   * @param {boolean} settings.showLegend - 是否显示图例
+   * @param {string} settings.lineColor - 曲线颜色
    * @param {boolean} settings.smoothCurve - 是否曲线平滑
    * @param {boolean} settings.showAnnotations - 是否显示文字标注
    * @param {number} settings.annotationInterval - 标注间隔（0=仅首尾，>0=每隔N个显示）
+   * @param {string} settings.annotationColor - 标注文字颜色
+   * @param {string} settings.annotationBgColor - 标注背景颜色
    * @param {number} settings.chartHeight - 图表高度
    */
   drawReturnTrendChart(container, navDetails, settings = {}) {
@@ -1305,6 +1310,7 @@ const actions = {
 
     // 曲线平滑设置
     const lineShape = settings.smoothCurve ? 'spline' : 'linear'
+    const lineColor = settings.lineColor || '#10b981'
 
     const data = [
       {
@@ -1313,7 +1319,7 @@ const actions = {
         name: '累计收益率 (%)',
         x: dates,
         y: cumReturnValues,
-        line: { color: '#10b981', width: 2, shape: lineShape },
+        line: { color: lineColor, width: 2, shape: lineShape },
         yaxis: 'y',
         hovertemplate: '%{x}<br>累计收益率: %{y:.2f}%<extra></extra>'
       }
@@ -1326,6 +1332,8 @@ const actions = {
 
     // 文字标注（支持间隔显示）
     const annotations = []
+    const annotationColor = settings.annotationColor || lineColor
+    const annotationBgColor = settings.annotationBgColor || '#ffffff'
     if (settings.showAnnotations && cumReturnValues.length > 0) {
       const interval = settings.annotationInterval || 0
       const createAnnotation = (idx) => {
@@ -1338,9 +1346,9 @@ const actions = {
           arrowhead: 2,
           ax: 0,
           ay: -20,
-          font: { color: '#10b981', size: 10 },
-          bgcolor: 'rgba(255,255,255,0.8)',
-          bordercolor: '#10b981',
+          font: { color: annotationColor, size: 10 },
+          bgcolor: annotationBgColor + 'cc',
+          bordercolor: annotationColor,
           borderwidth: 1,
           borderpad: 2
         }
@@ -1377,7 +1385,7 @@ const actions = {
       showlegend: settings.showLegend !== false,
       legend: { orientation: 'h', x: 0, y: 1.08, xanchor: 'left' },
       xaxis: {
-        title: settings.showXAxis !== false ? { text: '日期' } : undefined,
+        title: settings.showXAxisTitle !== false ? { text: '日期' } : undefined,
         type: 'category',
         tickangle: -45,
         automargin: true,
@@ -1387,7 +1395,7 @@ const actions = {
         showticklabels: settings.showXAxis !== false
       },
       yaxis: {
-        title: settings.showYAxis !== false ? { text: '累计收益率 (%)' } : undefined,
+        title: settings.showYAxisTitle !== false ? { text: '累计收益率 (%)' } : undefined,
         side: 'left',
         zeroline: settings.showZeroLine !== false,
         zerolinecolor: '#e2e8f0',
@@ -1417,6 +1425,20 @@ const actions = {
     const Plotly = this._getPlotly()
     if (!Plotly) return
     Plotly.Plots.resize(container)
+  },
+
+  // 导出图表为图片
+  exportChartAsImage(container, filename = 'chart.png') {
+    if (!container) return Promise.reject('No container')
+    const Plotly = this._getPlotly()
+    if (!Plotly) return Promise.reject('Plotly not loaded')
+
+    return Plotly.downloadImage(container, {
+      format: 'png',
+      width: 1200,
+      height: 600,
+      filename: filename
+    })
   }
 }
 

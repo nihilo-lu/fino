@@ -1998,6 +1998,56 @@
 .chart-settings-btn .material-icons {
     font-size: 20px;
 }
+.chart-actions {
+    display: inline-flex;
+    gap: 4px;
+}
+
+/* 分享弹窗 */
+.share-section {
+    margin-bottom: 20px;
+}
+.share-section:last-child {
+    margin-bottom: 0;
+}
+.share-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+.share-link-box {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.share-link-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+.share-hint {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+}
+.share-actions {
+    display: flex;
+    gap: 12px;
+}
+.share-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.share-actions .material-icons {
+    font-size: 18px;
+}
 
 /* 模态框 overlay */
 .modal-overlay {
@@ -2110,4 +2160,74 @@
 .form-group input[type="number"]::-webkit-inner-spin-button,
 .form-group input[type="number"]::-webkit-outer-spin-button {
     opacity: 1;
+}
+
+/* 设置分组 */
+.settings-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+.settings-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+.settings-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 颜色选择器 */
+.color-picker-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.color-input {
+    width: 36px;
+    height: 36px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: var(--surface-color);
+}
+.color-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+.color-text-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+/* 表单下拉框 */
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color var(--transition-fast);
+}
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }

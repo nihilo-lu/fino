@@ -19,17 +19,28 @@ export default {
 
     // 图表设置 - 从 localStorage 加载保存的设置
     const chartSettingsOpen = ref(false)
+    const chartShareOpen = ref(false)
+    const shareSettings = ref({
+      isPublic: false, // 是否公开分享（无需登录）
+      password: '', // 密码保护
+      expireDays: 0 // 0 表示永不过期
+    })
     const defaultChartSettings = {
       showDays: 0, // 0 表示全部显示
-      showZeroLine: true,
-      showGrid: true,
-      showLegend: true,
       showXAxis: true,
+      showXAxisTitle: true,
       showYAxis: true,
+      showYAxisTitle: true,
       dateFormat: 'auto', // auto, YYYY-MM-DD, MM/DD, MM-DD
+      showGrid: true,
+      showZeroLine: true,
+      showLegend: true,
+      lineColor: '#10b981',
       smoothCurve: false,
       showAnnotations: false,
       annotationInterval: 0, // 0 表示只显示首尾，>0 表示每隔N个显示一个
+      annotationColor: '#10b981',
+      annotationBgColor: '#ffffff',
       chartHeight: 400
     }
 
@@ -47,6 +58,28 @@ export default {
       { value: 'MM/DD', label: '01/01' },
       { value: 'MM-DD', label: '01-01' },
       { value: 'MMM DD', label: 'Jan 01' }
+    ]
+    // 预置颜色选项
+    const colorOptions = [
+      { value: '#10b981', label: '绿色' },
+      { value: '#3b82f6', label: '蓝色' },
+      { value: '#f59e0b', label: '橙色' },
+      { value: '#ef4444', label: '红色' },
+      { value: '#8b5cf6', label: '紫色' },
+      { value: '#ec4899', label: '粉色' },
+      { value: '#06b6d4', label: '青色' },
+      { value: '#84cc16', label: 'lime' },
+      { value: '#6b7280', label: '灰色' },
+      { value: '#000000', label: '黑色' }
+    ]
+
+    // 分享有效期选项
+    const expireOptions = [
+      { value: 0, label: '永不过期' },
+      { value: 1, label: '1天' },
+      { value: 7, label: '7天' },
+      { value: 30, label: '30天' },
+      { value: 90, label: '90天' }
     ]
 
     // 获取 localStorage key（包含账套 ID 以区分不同账套）
@@ -75,6 +108,37 @@ export default {
     }
 
     const chartSettings = ref({ ...defaultChartSettings })
+
+    // 检查是否是分享链接并加载设置
+    const loadShareSettings = () => {
+      const params = new URLSearchParams(window.location.search)
+      const settingsParam = params.get('settings')
+      if (settingsParam) {
+        try {
+          const decoded = JSON.parse(atob(settingsParam))
+          if (decoded.settings) {
+            chartSettings.value = { ...defaultChartSettings, ...decoded.settings }
+          }
+          // 保存分享设置用于后续验证
+          if (decoded.share) {
+            shareSettings.value = decoded.share
+          }
+          // 从分享链接中获取账套 ID
+          const ledgerParam = params.get('ledger')
+          if (ledgerParam && !state.currentLedgerId) {
+            // 如果未登录且有分享链接，尝试设置账套
+            const ledgerId = parseInt(ledgerParam, 10)
+            if (!isNaN(ledgerId)) {
+              actions.setCurrentLedger(ledgerId)
+            }
+          }
+          return true
+        } catch (e) {
+          console.error('Failed to parse share settings:', e)
+        }
+      }
+      return false
+    }
 
     const load = async () => {
       if (!state.currentLedgerId) return
@@ -244,6 +308,44 @@ export default {
       })
     }
 
+    // 导出图表为图片
+    const exportChartImage = async () => {
+      const el = document.getElementById('return-trend-chart-target')
+      if (!el) return
+      const ledgerName = state.ledgers.find(l => l.id === state.currentLedgerId)?.name || 'chart'
+      const filename = `收益率走势_${ledgerName}_${new Date().toISOString().slice(0, 10)}`
+      try {
+        await actions.exportChartAsImage(el, filename)
+      } catch (e) {
+        console.error('Failed to export chart:', e)
+      }
+    }
+
+    // 生成分享链接
+    const shareLink = computed(() => {
+      const baseUrl = window.location.origin + window.location.pathname
+      const shareData = {
+        settings: chartSettings.value,
+        share: shareSettings.value
+      }
+      const params = new URLSearchParams({
+        page: 'analysis',
+        ledger: state.currentLedgerId,
+        settings: btoa(JSON.stringify(shareData))
+      })
+      return `${baseUrl}?${params.toString()}`
+    })
+
+    // 复制分享链接
+    const copyShareLink = async () => {
+      try {
+        await navigator.clipboard.writeText(shareLink.value)
+        alert('链接已复制到剪贴板')
+      } catch (e) {
+        console.error('Failed to copy link:', e)
+      }
+    }
+
     // 加载图表设置并绘制图表
     const loadChartAndDraw = async () => {
       loadChartSettings()
@@ -261,7 +363,33 @@ export default {
     }
 
     onMounted(() => {
-      loadChartAndDraw()
+      // 首先检查是否是分享链接
+      const isShareLink = loadShareSettings()
+      // 如果是分享链接，检查访问权限
+      if (isShareLink) {
+        // 公开分享模式下直接加载图表
+        if (shareSettings.value.isPublic) {
+          loadChartAndDraw()
+        } else {
+          // 需要登录或密码验证
+          if (state.isAuthenticated) {
+            loadChartAndDraw()
+          } else if (shareSettings.value.password) {
+            // 有密码保护，提示用户登录或输入密码
+            const password = prompt('请输入访问密码：')
+            if (password === shareSettings.value.password) {
+              loadChartAndDraw()
+            } else {
+              alert('密码错误')
+            }
+          } else {
+            // 需要登录
+            alert('请先登录账户')
+          }
+        }
+      } else {
+        loadChartAndDraw()
+      }
     })
 
     onUnmounted(() => {
@@ -312,11 +440,18 @@ export default {
       formatCurrency,
       formatPercent,
       chartSettingsOpen,
+      chartShareOpen,
       chartSettings,
       dateFormatOptions,
       annotationIntervalOptions,
+      colorOptions,
+      shareSettings,
+      expireOptions,
       drawReturnChart,
-      saveChartSettings
+      saveChartSettings,
+      exportChartImage,
+      shareLink,
+      copyShareLink
     }
   },
   template: `
@@ -344,9 +479,14 @@ export default {
       <div class="chart-card">
         <div class="card-header">
           <h3>收益率走势</h3>
-          <button type="button" class="chart-settings-btn" @click="chartSettingsOpen = true" title="图表设置">
-            <span class="material-icons">settings</span>
-          </button>
+          <div class="chart-actions">
+            <button type="button" class="chart-settings-btn" @click="chartShareOpen = true" title="分享图表">
+              <span class="material-icons">share</span>
+            </button>
+            <button type="button" class="chart-settings-btn" @click="chartSettingsOpen = true" title="图表设置">
+              <span class="material-icons">settings</span>
+            </button>
+          </div>
         </div>
         <div class="card-body">
           <div class="chart-container">
@@ -476,80 +616,212 @@ export default {
             </button>
           </div>
           <div class="modal-body">
-            <div class="form-group">
-              <label>显示天数</label>
-              <input type="number" v-model="chartSettings.showDays" min="0" placeholder="0 表示显示全部" />
-              <small>0 表示显示全部数据</small>
+            <!-- 数据范围 -->
+            <div class="settings-section">
+              <div class="settings-section-title">数据范围</div>
+              <div class="form-group">
+                <label>显示天数</label>
+                <input type="number" v-model="chartSettings.showDays" min="0" placeholder="0 表示显示全部" />
+                <small>0 表示显示全部数据</small>
+              </div>
             </div>
-            <div class="form-group">
-              <label>日期格式</label>
-              <select v-model="chartSettings.dateFormat">
-                <option v-for="opt in dateFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
+
+            <!-- X轴设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">X轴</div>
+              <div class="form-group">
+                <label>显示横轴</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showXAxis" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>显示横轴名称</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showXAxisTitle" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>日期格式</label>
+                <select v-model="chartSettings.dateFormat">
+                  <option v-for="opt in dateFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label>曲线平滑</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.smoothCurve" />
-                <span class="toggle-slider"></span>
-              </label>
+
+            <!-- Y轴设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">Y轴</div>
+              <div class="form-group">
+                <label>显示纵轴</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showYAxis" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>显示纵轴名称</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showYAxisTitle" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>显示零线</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showZeroLine" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <div class="form-group">
-              <label>显示图例</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showLegend" />
-                <span class="toggle-slider"></span>
-              </label>
+
+            <!-- 网格设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">网格</div>
+              <div class="form-group">
+                <label>显示网格线</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showGrid" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <div class="form-group">
-              <label>显示文字标注</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showAnnotations" />
-                <span class="toggle-slider"></span>
-              </label>
+
+            <!-- 曲线设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">曲线</div>
+              <div class="form-group">
+                <label>曲线平滑</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.smoothCurve" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label>曲线颜色</label>
+                <div class="color-picker-row">
+                  <input type="color" v-model="chartSettings.lineColor" class="color-input" />
+                  <select v-model="chartSettings.lineColor" class="color-select">
+                    <option v-for="opt in colorOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div class="form-group" v-if="chartSettings.showAnnotations">
-              <label>标注间隔</label>
-              <select v-model="chartSettings.annotationInterval">
-                <option v-for="opt in annotationIntervalOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
+
+            <!-- 图例设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">图例</div>
+              <div class="form-group">
+                <label>显示图例</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showLegend" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <div class="form-group">
-              <label>显示零线</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showZeroLine" />
-                <span class="toggle-slider"></span>
-              </label>
+
+            <!-- 标注设置 -->
+            <div class="settings-section">
+              <div class="settings-section-title">标注</div>
+              <div class="form-group">
+                <label>显示文字标注</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="chartSettings.showAnnotations" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="form-group" v-if="chartSettings.showAnnotations">
+                <label>标注间隔</label>
+                <select v-model="chartSettings.annotationInterval">
+                  <option v-for="opt in annotationIntervalOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
+              <div class="form-group" v-if="chartSettings.showAnnotations">
+                <label>标注文字颜色</label>
+                <div class="color-picker-row">
+                  <input type="color" v-model="chartSettings.annotationColor" class="color-input" />
+                  <select v-model="chartSettings.annotationColor" class="color-select">
+                    <option v-for="opt in colorOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" v-if="chartSettings.showAnnotations">
+                <label>标注背景颜色</label>
+                <div class="color-picker-row">
+                  <input type="color" v-model="chartSettings.annotationBgColor" class="color-input" />
+                  <input type="text" v-model="chartSettings.annotationBgColor" class="color-text-input" placeholder="#ffffff" />
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label>显示网格线</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showGrid" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="form-group">
-              <label>显示横轴</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showXAxis" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="form-group">
-              <label>显示纵轴</label>
-              <label class="toggle-switch">
-                <input type="checkbox" v-model="chartSettings.showYAxis" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="form-group">
-              <label>图表高度</label>
-              <input type="number" v-model="chartSettings.chartHeight" min="200" max="800" step="50" />
+
+            <!-- 图表大小 -->
+            <div class="settings-section">
+              <div class="settings-section-title">图表大小</div>
+              <div class="form-group">
+                <label>图表高度</label>
+                <input type="number" v-model="chartSettings.chartHeight" min="200" max="800" step="50" />
+              </div>
             </div>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" @click="chartSettingsOpen = false">取消</button>
             <button type="button" class="btn btn-primary" @click="saveChartSettings">应用</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 图表分享弹窗 -->
+      <div :class="['modal', { active: chartShareOpen }]" @click.self="chartShareOpen = false">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>分享图表</h3>
+            <button type="button" class="modal-close" @click="chartShareOpen = false">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="share-section">
+              <div class="share-section-title">分享设置</div>
+              <div class="form-group">
+                <label>公开分享</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="shareSettings.isPublic" />
+                  <span class="toggle-slider"></span>
+                </label>
+                <small>关闭后需要登录账户才能查看</small>
+              </div>
+              <div class="form-group">
+                <label>密码保护</label>
+                <input type="text" v-model="shareSettings.password" placeholder="设置密码（留空则无密码）" />
+                <small>访问链接时需要输入密码</small>
+              </div>
+              <div class="form-group">
+                <label>有效期</label>
+                <select v-model="shareSettings.expireDays">
+                  <option v-for="opt in expireOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="share-section">
+              <div class="share-section-title">分享链接</div>
+              <div class="share-link-box">
+                <input type="text" :value="shareLink" readonly class="share-link-input" />
+                <button type="button" class="btn btn-primary" @click="copyShareLink">复制</button>
+              </div>
+              <small class="share-hint">复制链接后，他人可通过链接查看当前图表配置</small>
+            </div>
+            <div class="share-section">
+              <div class="share-section-title">导出图片</div>
+              <div class="share-actions">
+                <button type="button" class="btn btn-primary" @click="exportChartImage">
+                  <span class="material-icons">download</span>
+                  下载 PNG 图片
+                </button>
+              </div>
+              <small class="share-hint">将图表导出为 PNG 图片，可保存或发送给他人</small>
+            </div>
           </div>
         </div>
       </div>
