@@ -13,7 +13,7 @@ export default {
     const creating = ref(false)
     const displayError = ref('')
 
-    const types = ['资产', '收入', '支出', '权益']
+    const types = ['资产', '负债', '收入', '支出', '权益']
 
     const handleCreate = async () => {
       displayError.value = ''

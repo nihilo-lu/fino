@@ -617,7 +617,7 @@ class TransactionCRUD:
                         trans_date_str, end_date, ledger_id, account_id
                     )
 
-            # 重新计算收益净值表
+            # 净值法增量重算：从交易日期到昨天
             try:
                 generate_return_rate(
                     self.conn,
@@ -625,6 +625,7 @@ class TransactionCRUD:
                     full_refresh=True,
                     write_to_db=True,
                     db=db,
+                    incremental_from_date=trans_date_str if trans_date_str else None,
                 )
             except Exception as e:
                 logging.error(f"删除交易后重新计算收益净值失败: {e}")

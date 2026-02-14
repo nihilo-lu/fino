@@ -67,10 +67,23 @@ export default {
 
     watch(() => [props.show, props.editFund], async ([v, edit]) => {
       if (v) {
-        const ledgerId = state.currentLedgerId || state.ledgers[0]?.id || ''
-        const accounts = ledgerId ? await actions.fetchAccountsForLedger(parseInt(ledgerId)) : state.accounts
-        modalAccounts.value = accounts
-        const defaultAccountId = state.currentAccountId || accounts[0]?.id || ''
+        // 确保账本列表已加载，避免打开弹窗时 ledgers 为空导致无账本可选
+        if (!state.ledgers?.length) {
+          await actions.fetchLedgers()
+        }
+        const ledgerId = state.currentLedgerId || state.ledgers?.[0]?.id || ''
+        let accounts = []
+        if (ledgerId) {
+          accounts = await actions.fetchAccountsForLedger(parseInt(ledgerId, 10))
+          // 若接口未返回账户且当前 store 里已有该账本的账户，用 store 作为回退（例如刚在设置里添加了账户）
+          if (!accounts?.length && state.accounts?.length && state.currentLedgerId === parseInt(ledgerId, 10)) {
+            accounts = state.accounts
+          }
+        } else {
+          accounts = state.accounts || []
+        }
+        modalAccounts.value = Array.isArray(accounts) ? accounts : []
+        const defaultAccountId = state.currentAccountId || modalAccounts.value[0]?.id || ''
         if (edit?.id) {
           form.value = {
             ledger_id: edit.ledger_id ?? ledgerId,

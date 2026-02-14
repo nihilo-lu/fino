@@ -837,7 +837,10 @@ class Database:
 
             self.generate_snapshots_only(start_date, end_date, ledger_id, account_id)
             self.generate_return_rate(
-                ledger_id=ledger_id, full_refresh=True, write_to_db=True
+                ledger_id=ledger_id,
+                full_refresh=True,
+                write_to_db=True,
+                incremental_from_date=start_date,
             )
             logging.info(
                 f"已更新 {start_date} 到 {end_date} 的历史快照（账本: {ledger_id if ledger_id else '全部'}）"
@@ -2241,35 +2244,41 @@ class Database:
 
     def get_daily_assets(self, ledger_id: int, as_of_date: str) -> tuple:
         """
-        计算某日某账本的当日净资产（账户余额 + 持仓市值），不依赖预存的快照表。
-        当 account_balance_history / position_history 无数据时，用此方法实时计算。
+        计算某日某账本的当日净资产 = 资产类 - 负债类。
+        资产类 = 资产类账户现金余额 + 持仓市值（每日持仓 × 当日价格）；负债类 = 负债类账户余额。
+        不依赖预存的快照表，当 account_balance_history / position_history 无数据时用此方法实时计算。
 
         Args:
             ledger_id: 账本ID
             as_of_date: 日期 "YYYY-MM-DD"
 
         Returns:
-            tuple: (balance_cny, position_value_cny)
+            tuple: (balance_cny, position_value_cny)，其中 balance_cny 为资产类现金-负债类现金，
+                   position_value_cny 为当日持仓按当日价格折算的市值；当日净资产 = balance_cny + position_value_cny。
         """
         cursor = self.conn.cursor()
-        # 1. 账户余额：汇总所有账户。权益类账户（如投资本金）排除本金投入/撤出，
-        # 仅计入开仓/平仓等证券相关现金，否则当投资本金承担开仓时负现金会被漏计。
         from utils.equity_blacklist import is_equity_account
 
+        # 1. 账户余额：按类型区分。资产类、负债类、权益类均加余额（余额=借方-贷方，负债为贷方余额故为负，加即等价于减负债）；收入/支出不参与净资产。
         cursor.execute(
-            "SELECT id, name FROM accounts WHERE ledger_id = ?", (ledger_id,)
+            "SELECT id, name, type FROM accounts WHERE ledger_id = ?", (ledger_id,)
         )
         account_rows = cursor.fetchall()
         balance_cny = 0.0
-        for aid, name in account_rows:
-            if is_equity_account(name or ""):
+        for aid, name, acc_type in account_rows:
+            acc_type = (acc_type or "").strip()
+            name = name or ""
+            if acc_type in ("收入", "支出"):
+                continue
+            if is_equity_account(name):
                 balance_cny += self.get_account_balance_as_of_date(
                     aid, as_of_date, exclude_ft_types=("本金投入", "本金撤出")
                 )
             else:
+                # 资产、负债及其他：余额=借方-贷方，负债账户为负，加总即得 资产-负债
                 balance_cny += self.get_account_balance_as_of_date(aid, as_of_date)
 
-        # 2. 持仓市值：get_positions_as_of_date + 历史价格
+        # 2. 持仓市值：按当日持仓 × 当日价格计算（资产类根据每日持仓和价格）
         positions = self.analytics.get_positions_as_of_date(
             as_of_date, ledger_id=ledger_id
         )
@@ -2296,17 +2305,20 @@ class Database:
         ledger_id: Optional[int] = None,
         full_refresh: bool = True,
         write_to_db: bool = True,
+        incremental_from_date: Optional[str] = None,
     ):
         """
         按 process_return_rate.py 的净值法计算收益率，写入 return_rate 表。
+        支持增量：指定 incremental_from_date 且指定 ledger_id 时，仅重算该日至今。
 
         前置条件：需先运行 auto_backfill_history_and_snapshots() 生成
         position_history 和 account_balance_history；且需有本金投入/撤出记录（资金明细）。
 
         Args:
             ledger_id: 账本ID，None 表示处理所有账本
-            full_refresh: 是否全量刷新（先清理再计算）
+            full_refresh: 是否全量刷新（增量时仅删除指定日及之后）
             write_to_db: 是否写入数据库
+            incremental_from_date: 增量起始日期 "YYYY-MM-DD"，与 ledger_id 同时指定时仅重算该日至今
         """
         from return_rate_sqlite import generate_return_rate as _generate
 
@@ -2316,6 +2328,7 @@ class Database:
             full_refresh=full_refresh,
             write_to_db=write_to_db,
             db=self,
+            incremental_from_date=incremental_from_date,
         )
 
     def get_return_rate(

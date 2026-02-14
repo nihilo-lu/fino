@@ -28,7 +28,7 @@
 
 import pandas as pd
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple
 from decimal import Decimal, ROUND_HALF_UP
 from utils.config_loader import get_config
@@ -119,23 +119,20 @@ def read_fund_capital_changes(conn, ledger_id: Optional[int] = None) -> pd.DataF
 
 def read_daily_account_balance(conn, ledger_id: Optional[int] = None) -> pd.DataFrame:
     """
-    读取每日账户余额（按账本汇总，人民币）
-
-    Args:
-        conn: SQLite 数据库连接
-        ledger_id: 账本ID
-
-    Returns:
-        pd.DataFrame: 每日账户余额汇总
+    读取每日账户余额（按账本汇总，人民币）。
+    当日净资产 = 资产类 - 负债类，此处汇总为：资产类账户加、负债类账户减，收入/支出不参与。
     """
     try:
-        # 汇总所有账户（含承担开仓/平仓的权益类账户），否则负现金余额会被漏计导致净资产高估
+        # 仅汇总资产、负债、权益（balance 已带符号，负债为负）；收入/支出不参与净资产
         query = '''
             SELECT
                 abh.date AS 日期,
                 a.ledger_id,
                 l.name AS 账本名称,
-                SUM(abh.balance_cny) AS 账户余额
+                SUM(CASE
+                    WHEN a.type IN ('收入', '支出') THEN 0
+                    ELSE abh.balance_cny
+                END) AS 账户余额
             FROM account_balance_history abh
             JOIN accounts a ON abh.account_id = a.id
             LEFT JOIN ledgers l ON a.ledger_id = l.id
@@ -214,20 +211,24 @@ def calculate_return_rate(
     ledger_id: int,
     ledger_name: str,
     db=None,
+    incremental_from_date: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    计算收益率（净值法）
+    计算收益率（净值法）。支持增量：指定 incremental_from_date 时，从该日到昨天重算，前一日的总份额/净值从 return_rate 表读取。
 
     Args:
         conn: SQLite 数据库连接
         ledger_id: 账本ID
         ledger_name: 账本名称
         db: Database 实例，若提供则用 get_daily_assets 实时计算当日净资产（不依赖快照表）
+        incremental_from_date: 增量起始日期 "YYYY-MM-DD"，仅重算该日及之后；若前一日的 return_rate 不存在则退化为全量
 
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: (收益率表数据, 尾差损益数据)
     """
-    logging.info(f"开始计算收益率 - 账本: {ledger_name} (id={ledger_id})")
+    logging.info(f"开始计算收益率 - 账本: {ledger_name} (id={ledger_id})" + (
+        f" 增量从 {incremental_from_date}" if incremental_from_date else ""
+    ))
 
     capital_changes_df = read_fund_capital_changes(conn, ledger_id)
     account_balance_df = read_daily_account_balance(conn, ledger_id)
@@ -253,8 +254,39 @@ def calculate_return_rate(
     if not position_value_df.empty:
         max_dates.append(position_value_df['日期'].max())
     max_date = max(max_dates)
+    yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    # 净值只算到昨天
+    end_date_cap = min(pd.Timestamp(max_date), pd.Timestamp(yesterday_str))
 
-    date_range = pd.date_range(start=min_date, end=max_date, freq='D')
+    # 增量：从 incremental_from_date 起算，用前一日的 return_rate 做初值
+    start_date_for_range = min_date
+    total_shares = Decimal('0')
+    prev_nav = Decimal('1')
+    prev_total_assets = None
+    initial_nav = Decimal('1')
+
+    if incremental_from_date:
+        prev_d = (datetime.strptime(incremental_from_date, '%Y-%m-%d') - timedelta(days=1)).date()
+        prev_date_str = prev_d.strftime('%Y-%m-%d')
+        try:
+            prev_row = pd.read_sql_query(
+                'SELECT 总份额, 单位净值, 当日净资产 FROM return_rate WHERE ledger_id = ? AND date = ?',
+                conn, params=[ledger_id, prev_date_str]
+            )
+            if not prev_row.empty and len(prev_row) > 0:
+                row = prev_row.iloc[0]
+                total_shares = Decimal(str(row['总份额']))
+                prev_nav = Decimal(str(row['单位净值']))
+                prev_total_assets = Decimal(str(row['当日净资产']))
+                start_date_for_range = incremental_from_date
+                logging.info(f"增量计算：从 {incremental_from_date} 起算，前一日的总份额={total_shares} 单位净值={prev_nav}")
+            else:
+                incremental_from_date = None
+        except Exception as e:
+            logging.warning(f"读取前一日的 return_rate 失败，退化为全量计算: {e}")
+            incremental_from_date = None
+
+    date_range = pd.date_range(start=start_date_for_range, end=end_date_cap, freq='D')
 
     # 按日期汇总（仅当 db 未提供时用快照表）
     capital_by_date = capital_changes_df.groupby(capital_changes_df['日期'].dt.date)['发生金额'].sum().to_dict()
@@ -278,10 +310,6 @@ def calculate_return_rate(
     # 计算每日数据
     results = []
     rounding_diffs = []
-    total_shares = Decimal('0')
-    prev_nav = Decimal('1')
-    prev_total_assets = None
-    initial_nav = Decimal('1')
 
     for current_date in date_range:
         current_date_key = current_date.date()
@@ -424,15 +452,19 @@ def generate_return_rate(
     full_refresh: bool = True,
     write_to_db: bool = True,
     db=None,
+    incremental_from_date: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    生成收益率数据的主函数
+    生成收益率数据的主函数。支持增量：当 incremental_from_date 与 ledger_id 同时指定时，
+    仅删除该账本下该日及之后的 return_rate/rounding_diff，并从该日重算到昨天。
 
     Args:
         conn: SQLite 数据库连接
         ledger_id: 账本ID，None 表示处理所有账本
-        full_refresh: 是否全量刷新（先清理再计算）
+        full_refresh: 是否全量刷新（增量时仅删除指定日及之后，不删整表）
         write_to_db: 是否写入数据库
+        db: Database 实例，用于实时当日净资产
+        incremental_from_date: 增量起始日期 "YYYY-MM-DD"，与 ledger_id 同时指定时仅重算该日至今
 
     Returns:
         Tuple[pd.DataFrame, pd.DataFrame]: (收益率数据, 尾差数据)，多账本时合并
@@ -456,15 +488,23 @@ def generate_return_rate(
 
     for lid, lname in rows:
         try:
-            if full_refresh and write_to_db:
-                # 确保表存在（迁移可能尚未执行）
+            # 指定了增量起始日期时，对该账本（或全部账本）从该日起重算
+            inc_from = incremental_from_date if incremental_from_date else None
+            if write_to_db:
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='return_rate'")
                 if cursor.fetchone():
-                    cursor.execute('DELETE FROM return_rate WHERE ledger_id = ?', (lid,))
-                    cursor.execute('DELETE FROM rounding_diff WHERE ledger_id = ?', (lid,))
-                    conn.commit()
+                    if inc_from:
+                        cursor.execute('DELETE FROM return_rate WHERE ledger_id = ? AND date >= ?', (lid, inc_from))
+                        cursor.execute('DELETE FROM rounding_diff WHERE ledger_id = ? AND date >= ?', (lid, inc_from))
+                        conn.commit()
+                    elif full_refresh:
+                        cursor.execute('DELETE FROM return_rate WHERE ledger_id = ?', (lid,))
+                        cursor.execute('DELETE FROM rounding_diff WHERE ledger_id = ?', (lid,))
+                        conn.commit()
 
-            return_df, rounding_df = calculate_return_rate(conn, lid, lname, db=db)
+            return_df, rounding_df = calculate_return_rate(
+                conn, lid, lname, db=db, incremental_from_date=inc_from
+            )
 
             if return_df.empty:
                 continue

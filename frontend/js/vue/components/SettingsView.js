@@ -125,7 +125,7 @@ export default {
 
     const displayAccounts = computed(() => state.accounts || [])
 
-    const ACCOUNT_TYPE_ORDER = ['资产', '收入', '支出', '权益']
+    const ACCOUNT_TYPE_ORDER = ['资产', '负债', '收入', '支出', '权益']
     const accountsByType = computed(() => {
       const list = displayAccounts.value || []
       const map = new Map()
