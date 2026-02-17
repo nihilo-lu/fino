@@ -158,6 +158,7 @@ export default {
                   </th>
                   <th>日期</th>
                   <th>类型</th>
+                  <th>账户</th>
                   <th>代码</th>
                   <th>名称</th>
                   <th>币种</th>
@@ -170,7 +171,7 @@ export default {
               </thead>
               <tbody>
                 <tr v-if="transactions.length === 0">
-                  <td colspan="11" class="empty-message">暂无交易明细</td>
+                  <td colspan="12" class="empty-message">暂无交易明细</td>
                 </tr>
                 <tr v-for="t in transactions" :key="t.id">
                   <td class="col-checkbox">
@@ -178,6 +179,7 @@ export default {
                   </td>
                   <td>{{ t.date }}</td>
                   <td><span :class="['badge', 'badge-' + (t.type === '开仓' ? 'success' : t.type === '平仓' ? 'danger' : 'info')]">{{ t.type }}</span></td>
+                  <td>{{ t.account_name || '-' }}</td>
                   <td>{{ t.code }}</td>
                   <td>{{ t.name }}</td>
                   <td>{{ t.currency || 'CNY' }}</td>
