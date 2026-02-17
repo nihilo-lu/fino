@@ -390,6 +390,17 @@ export default {
         actions.showToast('请输入账本名称', 'warning')
         return
       }
+      const ledger = state.ledgers?.find((l) => l.id === editingLedgerId.value)
+      const costMethodChanged =
+        ledger && (ledger.cost_method || 'FIFO') !== editLedgerCostMethod.value
+      if (
+        costMethodChanged &&
+        !confirm(
+          '变更成本计量方法将重新计算该账本的持仓与收益，是否确认？'
+        )
+      ) {
+        return
+      }
       const ok = await actions.updateLedger(editingLedgerId.value, {
         name: editLedgerName.value.trim(),
         description: editLedgerDesc.value.trim(),

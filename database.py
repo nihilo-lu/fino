@@ -179,10 +179,18 @@ class Database:
             if cursor.rowcount == 0:
                 return False
 
-            # 如果成本方法改变，需要重建库存
+            # 如果成本方法改变，需要重建库存、同步持仓并重算该账本收益率
             if old_cost_method != cost_method:
                 self.analytics._ledger_cost_methods[ledger_id] = cost_method
-                self.analytics._rebuild_all_inventory()
+                self._rebuild_all_positions()
+                try:
+                    self.generate_return_rate(
+                        ledger_id=ledger_id,
+                        full_refresh=True,
+                        write_to_db=True,
+                    )
+                except Exception as e:
+                    logging.warning(f"成本法变更后重算收益率失败（账本 {ledger_id}）: {e}")
 
             # 清除相关缓存
             clear_related_cache(ledger_id=ledger_id)

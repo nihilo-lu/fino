@@ -130,16 +130,19 @@ class Analytics:
     def _get_inventory_manager(self, ledger_id: int):
         """根据账本的成本计算方法获取对应的库存管理器
 
-        Args:
-            ledger_id: 账本ID
-
-        Returns:
-            FIFOInventory 或 WACInventory: 对应的库存管理器
+        若当前仅存在一种成本法的账本，另一套库存可能未在初始化时创建；
+        此处按需创建，避免变更成本法后重建持仓时返回 None。
         """
         cost_method = self.get_ledger_cost_method(ledger_id)
         if cost_method == COST_METHOD_WAC:
+            if self.wac_inventory is None:
+                self.wac_inventory = WACInventory(enable_exchange_rate=True)
+                logging.info("已按需初始化 WAC 库存管理器")
             return self.wac_inventory
-        return self.fifo_inventory  # 默认使用 FIFO
+        if self.fifo_inventory is None:
+            self.fifo_inventory = FIFOInventory(enable_exchange_rate=True)
+            logging.info("已按需初始化 FIFO 库存管理器")
+        return self.fifo_inventory
 
     def _rebuild_all_inventory(self, force_full: bool = False):
         """从交易记录重建所有库存（只重建账本实际使用的方法）
@@ -156,14 +159,21 @@ class Analytics:
             return
 
         if force_full:
+            # 先从 DB 重新加载成本法，确保变更后的 cost_method 生效（避免仅改缓存未持久化等边界情况）
+            self._load_ledger_cost_methods()
             if self.fifo_inventory:
                 self.fifo_inventory.clear_inventory()
-
             if self.wac_inventory:
                 self.wac_inventory.clear_inventory()
-
             self._last_processed_ids.clear()
-
+            # 成本法变更后可能首次使用另一种方法，需确保对应库存管理器存在
+            used_methods = set(self._ledger_cost_methods.values())
+            if COST_METHOD_FIFO in used_methods and self.fifo_inventory is None:
+                self.fifo_inventory = FIFOInventory(enable_exchange_rate=True)
+                logging.info("已按需初始化 FIFO 库存管理器")
+            if COST_METHOD_WAC in used_methods and self.wac_inventory is None:
+                self.wac_inventory = WACInventory(enable_exchange_rate=True)
+                logging.info("已按需初始化 WAC 库存管理器")
         ledgers_df = self.get_ledgers()
         if ledgers_df.empty:
             return
@@ -343,9 +353,12 @@ class Analytics:
         if last_processed < transaction_id - 1:
             self._rebuild_ledger_inventory(ledger_id, force_full=True)
         else:
-            # 增量：仅把当前交易加入库存
-            self.fifo_inventory._process_single_transaction(inventory_row, ledger_id)
-            self.wac_inventory._process_single_transaction(inventory_row, ledger_id)
+            # 增量：仅把当前交易加入该账本所对应的库存（只更新与成本法匹配的库存，避免 WAC 在 FIFO 账本下误报「创建空头寸」）
+            cost_method = self.get_ledger_cost_method(ledger_id)
+            if cost_method == COST_METHOD_FIFO and self.fifo_inventory:
+                self.fifo_inventory._process_single_transaction(inventory_row, ledger_id)
+            elif cost_method == COST_METHOD_WAC and self.wac_inventory:
+                self.wac_inventory._process_single_transaction(inventory_row, ledger_id)
             if transaction_id > last_processed:
                 self._last_processed_ids[ledger_id] = transaction_id
                 self._save_inventory_state(ledger_id)

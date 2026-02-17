@@ -1045,6 +1045,9 @@ const actions = {
     const data = await parseJson(response)
     if (response.ok && data?.success) {
       showToast('账本更新成功', 'success')
+      if (Number(id) === state.currentLedgerId) {
+        state.dashboardRefreshTrigger++
+      }
       return true
     }
     showToast(data?.error || '更新失败', 'error')
