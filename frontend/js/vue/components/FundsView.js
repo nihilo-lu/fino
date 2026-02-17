@@ -101,7 +101,7 @@ export default {
           </button>
         </div>
         <div class="toolbar-right">
-          <button class="btn btn-danger" @click="batchDelete" :disabled="!selectedIds.length">
+          <button class="btn btn-danger" @click="batchDelete" v-show="selectedIds.length">
             <span class="material-icons">delete_sweep</span>
             批量删除 ({{ selectedIds.length }})
           </button>
