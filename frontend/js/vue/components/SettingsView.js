@@ -1122,8 +1122,8 @@ export default {
         <div class="card-header"><h3>📧 邮件设置</h3></div>
         <div class="card-body">
           <p class="form-hint" style="margin-bottom: 16px;">配置 SMTP 后可用于注册验证码、找回密码等场景。请先填写并保存，再发送测试邮件。</p>
-          <form @submit="handleEmailSave">
-            <div class="form-group checkbox-group">
+          <form @submit="handleEmailSave" class="email-settings-form">
+            <div class="form-group checkbox-group email-settings-toggle-row">
               <label class="toggle-switch">
                 <input v-model="emailConfig.enabled" type="checkbox">
                 <span class="toggle-slider"></span>
@@ -1155,7 +1155,7 @@ export default {
                 <label>发件人邮箱</label>
                 <input v-model="emailConfig.from_email" type="email" placeholder="如 noreply@example.com">
               </div>
-              <div class="form-group checkbox-group">
+              <div class="form-group checkbox-group email-settings-toggle-row">
                 <label class="toggle-switch">
                   <input v-model="emailConfig.use_tls" type="checkbox">
                   <span class="toggle-slider"></span>
@@ -1163,13 +1163,13 @@ export default {
                 </label>
               </div>
             </div>
-            <div class="form-group checkbox-group">
+            <div class="form-group checkbox-group email-settings-toggle-row">
               <label class="toggle-switch">
                 <input v-model="emailConfig.require_verification_for_register" type="checkbox">
                 <span class="toggle-slider"></span>
                 <span class="toggle-switch-label">注册时需要邮箱验证码</span>
               </label>
-              <p class="form-hint" style="margin-top: 4px;">开启后，用户注册时必须先获取并填写发送到邮箱的验证码。</p>
+              <p class="form-hint email-settings-hint">开启后，用户注册时必须先获取并填写发送到邮箱的验证码。</p>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" :disabled="emailConfigSaving">

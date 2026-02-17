@@ -2075,13 +2075,16 @@
     gap: 12px;
 }
 
-/* 开关样式 */
+/* 开关样式（与上方 toggle 一致：支持右侧 .toggle-switch-label，避免与下方表单项重叠） */
 .toggle-switch {
     position: relative;
-    display: inline-block;
-    width: 44px;
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    min-width: 44px;
     height: 24px;
     cursor: pointer;
+    user-select: none;
 }
 .toggle-switch input {
     position: absolute;
@@ -2090,12 +2093,11 @@
     height: 0;
 }
 .toggle-slider {
-    position: absolute;
+    position: relative;
+    flex-shrink: 0;
+    width: 44px;
+    height: 24px;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
     background-color: var(--border-color);
     transition: 0.3s;
     border-radius: 24px;
@@ -2119,6 +2121,26 @@
 }
 .toggle-switch input:focus + .toggle-slider {
     box-shadow: 0 0 1px var(--primary-color);
+}
+.toggle-switch-label {
+    margin-left: 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* 邮件设置：开关行与下方 SMTP/表单项间距，避免文字重叠 */
+.email-settings-form .email-settings-toggle-row {
+    margin-bottom: 16px;
+}
+.email-settings-form .email-settings-toggle-row .toggle-switch {
+    display: inline-flex;
+    align-items: center;
+}
+.email-settings-form .email-settings-hint {
+    margin-top: 6px;
+    margin-left: 0;
+    margin-bottom: 0;
 }
 
 /* 表单组 */
